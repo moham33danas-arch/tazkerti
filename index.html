@@ -7,7 +7,7 @@
   
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#1E3A8A">
+  <meta name="theme-color" content="#1E3A8A" id="theme-color">
   <link rel="apple-touch-icon" href="https://via.placeholder.com/192/1E3A8A/C6A44C?text=Tazkarti">
   
   <script src="https://cdn.tailwindcss.com"></script>
@@ -283,9 +283,35 @@
     .dark .payment-image {
       background: #334155;
     }
+
+    /* زر تثبيت التطبيق */
+    .install-btn {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      background: linear-gradient(135deg, #C6A44C, #1E3A8A);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 50px;
+      font-weight: bold;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      z-index: 90;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255,255,255,0.2);
+      cursor: pointer;
+    }
   </style>
 </head>
 <body class="text-gray-800 pb-24">
+
+  <!-- زر تثبيت التطبيق -->
+  <button id="installBtn" hidden class="install-btn">
+    <i class="fas fa-download"></i> تثبيت التطبيق
+  </button>
 
   <!-- Onboarding Modal -->
   <div id="onboardingModal" class="onboarding-overlay" style="display: none;">
@@ -626,6 +652,34 @@
     let currentBookingPassengers = 1;
     let currentBookingDate = '';
 
+    // ==================== PWA Installation ====================
+    let deferredPrompt;
+    const installBtn = document.getElementById('installBtn');
+    
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.hidden = false;
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      installBtn.hidden = true;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to install prompt: ${outcome}`);
+      deferredPrompt = null;
+    });
+
+    // تسجيل Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('SW registered:', reg.scope))
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+
     // ==================== دوال الكاش ====================
     function getCachedData(key) {
       try {
@@ -658,16 +712,19 @@
     function initTheme() {
       const html = document.documentElement;
       const themeIcon = document.getElementById('themeIcon');
+      const themeColorMeta = document.getElementById('theme-color');
       const savedTheme = localStorage.getItem('theme') || 'light';
       
       if (savedTheme === 'dark') {
         html.classList.add('dark');
         themeIcon.classList.remove('fa-moon');
         themeIcon.classList.add('fa-sun');
+        themeColorMeta.setAttribute('content', '#0F172A');
       } else {
         html.classList.remove('dark');
         themeIcon.classList.remove('fa-sun');
         themeIcon.classList.add('fa-moon');
+        themeColorMeta.setAttribute('content', '#1E3A8A');
       }
       
       document.getElementById('themeToggle').addEventListener('click', () => {
@@ -676,11 +733,13 @@
           themeIcon.classList.remove('fa-sun');
           themeIcon.classList.add('fa-moon');
           localStorage.setItem('theme', 'light');
+          themeColorMeta.setAttribute('content', '#1E3A8A');
         } else {
           html.classList.add('dark');
           themeIcon.classList.remove('fa-moon');
           themeIcon.classList.add('fa-sun');
           localStorage.setItem('theme', 'dark');
+          themeColorMeta.setAttribute('content', '#0F172A');
         }
       });
     }
@@ -1156,7 +1215,6 @@
       await loadStates();
       await loadBusFilters();
       startOnboardingIfNeeded();
-      if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(err => console.log);
       window.addEventListener('resize', updateArrowsVisibility);
     };
 
