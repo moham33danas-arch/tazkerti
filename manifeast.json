@@ -1,68 +1,22 @@
 {
-  "name": "تزكرتي - خدمات النقل الفاخر",
-  "short_name": "تزكرتي",
-  "description": "منصة حجز تذاكر النقل البري في السودان - تجربة سفر آمنة ومريحة",
-  "start_url": "/",
+  "name": "تزكرتي",
+  "short_name":"تزكرتي",
+  "start_url": "/index.html",
   "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e3a8a",
   "orientation": "portrait",
-  "background_color": "#1E3A8A",
-  "theme_color": "#1E3A8A",
-  "lang": "ar",
-  "dir": "rtl",
+  "scope": "/",
   "icons": [
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "A/1775922329422.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+  {
+    "src": "https://cdn-icons-png.flaticon.com/512/2331/2331966.png",
+    "sizes": "192x192",
+    "type": "image/png"
+  },
+  {
+    "src": "https://cdn-icons-png.flaticon.com/512/2331/2331966.png",
+    "sizes": "512x512",
+    "type": "image/png"
+  }
   ]
 }
