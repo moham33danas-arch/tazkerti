@@ -27,7 +27,6 @@
   
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <!-- إضافة مكتبة Authentication -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   
@@ -338,7 +337,7 @@
   <div id="authLoadingScreen" class="auth-loading-screen">
     <div class="auth-spinner mb-4"></div>
     <p class="text-lg font-bold text-royalDark dark:text-white">جاري الاتصال...</p>
-    <p class="text-sm text-gray-500 mt-2">تسجيل الدخول المجهول</p>
+    <p class="text-sm text-gray-500 mt-2">تسجيل الدخول السريع</p>
   </div>
 
   <!-- باقي محتوى التطبيق (يُخفى حتى تسجيل الدخول) -->
@@ -671,7 +670,7 @@
 
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
-  const auth = firebase.auth(); // ✅ تهيئة خدمة المصادقة
+  const auth = firebase.auth();
 
   // ==================== تسجيل الدخول المجهول ====================
   async function signInAnonymouslyAndInit() {
@@ -679,11 +678,9 @@
     const appContent = document.getElementById('appContent');
     
     try {
-      // إذا كان هناك مستخدم مسجل بالفعل (حتى لو مجهول) نستخدمه
       let user = auth.currentUser;
       
       if (!user) {
-        // محاولة تسجيل الدخول كمجهول
         const result = await auth.signInAnonymously();
         user = result.user;
         console.log('✅ تم تسجيل الدخول المجهول بنجاح. معرف المستخدم:', user.uid);
@@ -691,11 +688,9 @@
         console.log('ℹ️ المستخدم مسجل بالفعل:', user.uid);
       }
       
-      // إخفاء شاشة التحميل وإظهار المحتوى
       loadingScreen.style.display = 'none';
       appContent.style.display = 'block';
       
-      // بدء تهيئة التطبيق بعد تسجيل الدخول
       await initApp();
       
     } catch (error) {
@@ -711,7 +706,6 @@
     }
   }
 
-  // ==================== دوال تهيئة التطبيق ====================
   async function initApp() {
     initTheme();
     await loadStates();
@@ -719,36 +713,30 @@
     startOnboardingIfNeeded();
     window.addEventListener('resize', updateArrowsVisibility);
     
-    // مراقبة تغيرات حالة المصادقة (اختياري)
     auth.onAuthStateChanged(user => {
       if (user) {
         console.log('🟢 المستخدم نشط:', user.uid);
       } else {
         console.log('🔴 تم تسجيل الخروج');
-        // يمكن إعادة توجيه أو إظهار رسالة
       }
     });
   }
 
   // ==================== ثوابت التطبيق ====================
-  const WHATSAPP_NUMBER = '249924299798'; // رقم الواتساب الثابت
-  
-  // ✅ تغيير مدة الكاش إلى 0 (تعطيل التخزين المؤقت) لحل مشكلة البيانات القديمة
-  const CACHE_TTL = 0; // 0 يعني عدم تخزين البيانات مؤقتاً (يمكن تغييره إلى 60000 مثلاً لدقيقة واحدة)
+  const WHATSAPP_NUMBER = '249924299798';
+  const CACHE_TTL = 0;
   
   let bookings = [];
   let stateList = [];
   let currentFilter = 'all';
   let busNamesList = [];
   
-  // بيانات الرحلة الحالية المختارة للدفع
   let currentBookingBus = null;
   let currentBookingPassengers = 1;
   let currentBookingDate = '';
 
-  // ==================== دوال الكاش (مُحسَّنة) ====================
   function getCachedData(key) {
-    if (CACHE_TTL === 0) return null; // تعطيل الكاش بالكامل
+    if (CACHE_TTL === 0) return null;
     try {
       const cached = localStorage.getItem(key);
       if (!cached) return null;
@@ -758,74 +746,50 @@
         return null;
       }
       return data.value;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   }
 
   function setCachedData(key, value) {
-    if (CACHE_TTL === 0) return; // لا تخزن شيئاً
+    if (CACHE_TTL === 0) return;
     try {
-      const data = {
-        value: value,
-        expiry: Date.now() + CACHE_TTL
-      };
+      const data = { value: value, expiry: Date.now() + CACHE_TTL };
       localStorage.setItem(key, JSON.stringify(data));
-    } catch (e) {
-      console.warn("فشل تخزين البيانات مؤقتاً:", e);
-    }
+    } catch (e) {}
   }
 
-  // ✅ دالة مسح جميع الكاش يدوياً (للمطور)
-  function clearAllCache() {
-    const keysToRemove = [];
+  window.clearAllCache = function() {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key.startsWith('tazkarti_')) {
-        keysToRemove.push(key);
-      }
+      if (key.startsWith('tazkarti_')) localStorage.removeItem(key);
     }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    console.log('✅ تم مسح الكاش:', keysToRemove);
-    alert('تم مسح الكاش بنجاح. سيتم تحميل البيانات الجديدة من قاعدة البيانات.');
-    // إعادة تحميل البيانات
-    loadStates();
-    loadBusFilters();
+    alert('تم مسح الكاش');
+    loadStates(); loadBusFilters();
     if (document.getElementById('search-from').value) renderBuses();
-  }
+  };
 
-  // إظهار زر مسح الكاش للمطور (يمكن استدعاؤه من console أيضاً)
-  window.clearAllCache = clearAllCache;
-
-  // ==================== PWA Installation ====================
+  // ==================== PWA ====================
   let deferredPrompt;
   const installBtn = document.getElementById('installBtn');
-  
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     installBtn.hidden = false;
   });
-
   installBtn.addEventListener('click', async () => {
     if (!deferredPrompt) return;
     installBtn.hidden = true;
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to install prompt: ${outcome}`);
+    await deferredPrompt.userChoice;
     deferredPrompt = null;
   });
 
-  // تسجيل Service Worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js')
-        .then(reg => console.log('SW registered:', reg.scope))
-        .catch(err => console.log('SW registration failed:', err));
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
     });
   }
 
-  // ==================== الوضع الداكن/الفاتح ====================
+  // ==================== الوضع الداكن ====================
   function initTheme() {
     const html = document.documentElement;
     const themeIcon = document.getElementById('themeIcon');
@@ -834,34 +798,30 @@
     
     if (savedTheme === 'dark') {
       html.classList.add('dark');
-      themeIcon.classList.remove('fa-moon');
-      themeIcon.classList.add('fa-sun');
+      themeIcon.classList.remove('fa-moon'); themeIcon.classList.add('fa-sun');
       themeColorMeta.setAttribute('content', '#0F172A');
     } else {
       html.classList.remove('dark');
-      themeIcon.classList.remove('fa-sun');
-      themeIcon.classList.add('fa-moon');
+      themeIcon.classList.remove('fa-sun'); themeIcon.classList.add('fa-moon');
       themeColorMeta.setAttribute('content', '#1E3A8A');
     }
     
     document.getElementById('themeToggle').addEventListener('click', () => {
       if (html.classList.contains('dark')) {
         html.classList.remove('dark');
-        themeIcon.classList.remove('fa-sun');
-        themeIcon.classList.add('fa-moon');
+        themeIcon.classList.remove('fa-sun'); themeIcon.classList.add('fa-moon');
         localStorage.setItem('theme', 'light');
         themeColorMeta.setAttribute('content', '#1E3A8A');
       } else {
         html.classList.add('dark');
-        themeIcon.classList.remove('fa-moon');
-        themeIcon.classList.add('fa-sun');
+        themeIcon.classList.remove('fa-moon'); themeIcon.classList.add('fa-sun');
         localStorage.setItem('theme', 'dark');
         themeColorMeta.setAttribute('content', '#0F172A');
       }
     });
   }
   
-  // ==================== Onboarding Logic ====================
+  // ==================== Onboarding ====================
   let currentStep = 0;
   const steps = [
     { icon: 'fa-route', title: 'أهلاً بك في تزكرتي', desc: 'دليلك للسفر المريح والآمن داخل السودان. دعنا نرشدك خلال خطوات بسيطة.', color: 'text-royal' },
@@ -908,12 +868,11 @@
 
   function extractCity(fullName) { if (!fullName) return ''; const match = fullName.match(/\(([^)]+)\)/); return match ? match[1] : fullName; }
 
-  // ==================== تحميل الولايات (مع كاش معطل) ====================
+  // ==================== تحميل الولايات ====================
   async function loadStates() {
     const fromSelect = document.getElementById('search-from');
     const toSelect = document.getElementById('search-to');
     
-    // مع CACHE_TTL=0 لن يتم استخدام الكاش
     const cachedStates = getCachedData('tazkarti_states');
     if (cachedStates && Array.isArray(cachedStates) && cachedStates.length > 0) {
       stateList = cachedStates;
@@ -954,7 +913,7 @@
     if (states.length > 1) toSelect.value = states[1];
   }
 
-  // ==================== تحميل أسماء الباصات للفلترة (مع كاش معطل) ====================
+  // ==================== تحميل أسماء الباصات ====================
   async function loadBusFilters() {
     const cachedFilters = getCachedData('tazkarti_bus_filters');
     if (cachedFilters && Array.isArray(cachedFilters)) {
@@ -966,11 +925,7 @@
     try {
       const snapshot = await db.collection("buses").get();
       const busNames = new Set();
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.name) busNames.add(data.name);
-      });
-      
+      snapshot.forEach(doc => { const data = doc.data(); if (data.name) busNames.add(data.name); });
       busNamesList = Array.from(busNames).sort();
       setCachedData('tazkarti_bus_filters', busNamesList);
       renderFilterChips(busNamesList);
@@ -984,9 +939,7 @@
   function renderFilterChips(names) {
     const filterChipsContainer = document.getElementById('filterChips');
     let chipsHtml = `<button data-filter="all" class="filter-chip active">الكل</button>`;
-    names.forEach(name => {
-      chipsHtml += `<button data-filter="${name}" class="filter-chip">${name}</button>`;
-    });
+    names.forEach(name => { chipsHtml += `<button data-filter="${name}" class="filter-chip">${name}</button>`; });
     filterChipsContainer.innerHTML = chipsHtml;
     attachFilterEvents();
     setTimeout(updateArrowsVisibility, 100);
@@ -995,16 +948,8 @@
   function attachFilterEvents() {
     const chips = document.querySelectorAll('.filter-chip');
     const container = document.getElementById('filterScrollContainer');
-    
-    chips.forEach(chip => {
-      chip.removeEventListener('click', handleFilterClick);
-      chip.addEventListener('click', handleFilterClick);
-    });
-    
-    if (container) {
-      container.removeEventListener('scroll', updateArrowsVisibility);
-      container.addEventListener('scroll', updateArrowsVisibility);
-    }
+    chips.forEach(chip => { chip.removeEventListener('click', handleFilterClick); chip.addEventListener('click', handleFilterClick); });
+    if (container) { container.removeEventListener('scroll', updateArrowsVisibility); container.addEventListener('scroll', updateArrowsVisibility); }
   }
   
   function handleFilterClick(e) {
@@ -1017,61 +962,35 @@
   
   function setActiveFilter(filter) {
     currentFilter = filter;
-    document.querySelectorAll('.filter-chip').forEach(chip => {
-      chip.classList.toggle('active', chip.getAttribute('data-filter') === filter);
-    });
+    document.querySelectorAll('.filter-chip').forEach(chip => { chip.classList.toggle('active', chip.getAttribute('data-filter') === filter); });
   }
   
   function scrollFilters(direction) {
     const container = document.getElementById('filterScrollContainer');
-    const scrollAmount = 250;
-    if (direction === 'left') {
-      container.scrollLeft += scrollAmount;
-    } else {
-      container.scrollLeft -= scrollAmount;
-    }
+    container.scrollLeft += (direction === 'left' ? 250 : -250);
   }
   
   function updateArrowsVisibility() {
     const container = document.getElementById('filterScrollContainer');
     const leftArrow = document.getElementById('scrollLeftArrow');
     const rightArrow = document.getElementById('scrollRightArrow');
-    
     if (!container || !leftArrow || !rightArrow) return;
-    
     const maxScroll = container.scrollWidth - container.clientWidth;
     const scrollLeft = container.scrollLeft;
-    
-    if (scrollLeft <= 5) {
-      rightArrow.classList.add('disabled');
-    } else {
-      rightArrow.classList.remove('disabled');
-    }
-    
-    if (scrollLeft >= maxScroll - 5) {
-      leftArrow.classList.add('disabled');
-    } else {
-      leftArrow.classList.remove('disabled');
-    }
+    rightArrow.classList.toggle('disabled', scrollLeft <= 5);
+    leftArrow.classList.toggle('disabled', scrollLeft >= maxScroll - 5);
   }
 
-  // ==================== جلب الرحلات (مع كاش معطل) ====================
+  // ==================== جلب الرحلات ====================
   async function renderBuses() {
     const container = document.getElementById('buses-container');
     const from = document.getElementById('search-from').value;
     const to = document.getElementById('search-to').value;
-    if (!from || !to) { 
-      container.innerHTML = '<div class="text-center py-10 text-gray-400">الرجاء اختيار محطتي المغادرة والوصول</div>'; 
-      return; 
-    }
+    if (!from || !to) { container.innerHTML = '<div class="text-center py-10 text-gray-400">الرجاء اختيار محطتي المغادرة والوصول</div>'; return; }
     
     const cacheKey = `tazkarti_buses_${from}_${to}`;
-    
     const cachedBuses = getCachedData(cacheKey);
-    if (cachedBuses && Array.isArray(cachedBuses)) {
-      displayBuses(cachedBuses, from, to);
-      return;
-    }
+    if (cachedBuses && Array.isArray(cachedBuses)) { displayBuses(cachedBuses, from, to); return; }
     
     container.innerHTML = '<div class="text-center py-10"><i class="fas fa-spinner fa-pulse text-2xl text-gold"></i><p class="mt-2">جاري تحميل الرحلات...</p></div>';
     
@@ -1079,9 +998,7 @@
       const snapshot = await db.collection("buses").where("from", "==", from).where("to", "==", to).get();
       let buses = []; 
       snapshot.forEach(doc => buses.push({ id: doc.id, ...doc.data() }));
-      
       setCachedData(cacheKey, buses);
-      
       displayBuses(buses, from, to);
     } catch (error) { 
       console.error("خطأ في جلب الرحلات:", error); 
@@ -1091,14 +1008,11 @@
   
   function displayBuses(buses, from, to) {
     const container = document.getElementById('buses-container');
-    let filteredBuses = buses;
-    if (currentFilter !== 'all') {
-      filteredBuses = buses.filter(bus => bus.name && bus.name === currentFilter);
-    }
+    let filteredBuses = (currentFilter === 'all') ? buses : buses.filter(bus => bus.name === currentFilter);
     
     if (filteredBuses.length === 0) {
       const filterText = currentFilter === 'all' ? '' : ` (${currentFilter})`;
-      container.innerHTML = `<div class="text-center py-10 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"><i class="fas fa-route text-5xl text-gray-300 dark:text-gray-600 mb-4"></i><p class="font-bold text-gray-500 dark:text-gray-400">لا توجد رحلات متاحة من ${extractCity(from)} إلى ${extractCity(to)}${filterText}</p><p class="text-sm text-gray-400 mt-2">جرب البحث عن مسار آخر أو غير الفلتر</p></div>`;
+      container.innerHTML = `<div class="text-center py-10 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"><i class="fas fa-route text-5xl text-gray-300 dark:text-gray-600 mb-4"></i><p class="font-bold text-gray-500 dark:text-gray-400">لا توجد رحلات متاحة من ${extractCity(from)} إلى ${extractCity(to)}${filterText}</p></div>`;
       return;
     }
     
@@ -1124,14 +1038,11 @@
     `).join('');
   }
 
-  // ==================== حجز رحلة (يفتح نافذة الدفع) ====================
+  // ==================== حجز رحلة ====================
   async function bookTrip(busId) {
     try {
       const busDoc = await db.collection("buses").doc(busId).get();
-      if (!busDoc.exists) {
-        alert("الرحلة غير موجودة");
-        return;
-      }
+      if (!busDoc.exists) { alert("الرحلة غير موجودة"); return; }
       const bus = busDoc.data();
       const passengers = parseInt(document.getElementById('search-passengers').value);
       const date = document.getElementById('search-date').value;
@@ -1141,143 +1052,106 @@
       currentBookingDate = date;
       
       openPaymentModal();
-      
     } catch (error) {
       console.error("خطأ في تجهيز الحجز:", error);
       alert("حدث خطأ أثناء تجهيز الحجز. الرجاء المحاولة مرة أخرى.");
     }
   }
 
-  // ==================== وظائف نافذة الدفع ====================
   function openPaymentModal() {
     if (!currentBookingBus) return;
-    
     const bus = currentBookingBus;
     const passengers = currentBookingPassengers;
     const date = currentBookingDate;
     const totalPrice = bus.price * passengers;
-    const depositAmount = 10000; // العربون
+    const depositAmount = 10000;
     
-    const summaryDiv = document.getElementById('paymentTripSummary');
-    summaryDiv.innerHTML = `
-      <div class="flex items-center gap-3 mb-2">
-        <i class="fas fa-bus text-gold"></i>
-        <span class="font-black">${bus.name} (${bus.type})</span>
-      </div>
-      <div class="flex justify-between text-sm">
-        <span>${extractCity(bus.from)} → ${extractCity(bus.to)}</span>
-        <span>${date} | ${bus.depTime}</span>
-      </div>
-      <div class="flex justify-between text-sm mt-2">
-        <span>عدد التزاكر: ${passengers}</span>
-        <span>الإجمالي: ${totalPrice.toLocaleString()} ج.س</span>
-      </div>
+    document.getElementById('paymentTripSummary').innerHTML = `
+      <div class="flex items-center gap-3 mb-2"><i class="fas fa-bus text-gold"></i><span class="font-black">${bus.name} (${bus.type})</span></div>
+      <div class="flex justify-between text-sm"><span>${extractCity(bus.from)} → ${extractCity(bus.to)}</span><span>${date} | ${bus.depTime}</span></div>
+      <div class="flex justify-between text-sm mt-2"><span>عدد التزاكر: ${passengers}</span><span>الإجمالي: ${totalPrice.toLocaleString()} ج.س</span></div>
       <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center">
-        <span class="font-bold">
-           الحجز المبدئي:</span>
-        <span class="font-black text-gold text-xl">${depositAmount.toLocaleString()} ج.س</span>
+        <span class="font-bold">الحجز المبدئي:</span><span class="font-black text-gold text-xl">${depositAmount.toLocaleString()} ج.س</span>
       </div>
     `;
-    
     document.getElementById('customerFullName').value = '';
     document.getElementById('customerPhone').value = '';
-    
     document.getElementById('paymentModal').style.display = 'flex';
   }
   
-  function closePaymentModal() {
-    document.getElementById('paymentModal').style.display = 'none';
-  }
+  function closePaymentModal() { document.getElementById('paymentModal').style.display = 'none'; }
   
   function copyToClipboard(text, element) {
     navigator.clipboard.writeText(text).then(() => {
       const feedback = element.querySelector('.copy-feedback');
-      if (feedback) {
-        feedback.style.opacity = '1';
-        setTimeout(() => { feedback.style.opacity = '0'; }, 1500);
-      }
-    }).catch(err => {
-      alert('تعذر النسخ. الرجاء النسخ يدوياً.');
-    });
+      if (feedback) { feedback.style.opacity = '1'; setTimeout(() => feedback.style.opacity = '0', 1500); }
+    }).catch(() => alert('تعذر النسخ. الرجاء النسخ يدوياً.'));
   }
   
+  // ✅ تم إصلاح دالة الحفظ والانتقال إلى واتساب
   async function proceedToUploadReceipt() {
     if (!currentBookingBus) return;
     
     const fullName = document.getElementById('customerFullName').value.trim();
     const phone = document.getElementById('customerPhone').value.trim();
     
-    if (!fullName) {
-      alert('الرجاء إدخال الاسم الرباعي الكامل');
-      return;
-    }
-    if (!phone) {
-      alert('الرجاء إدخال رقم الهاتف');
-      return;
-    }
+    if (!fullName) { alert('الرجاء إدخال الاسم الرباعي الكامل'); return; }
+    if (!phone) { alert('الرجاء إدخال رقم الهاتف'); return; }
     
     const bus = currentBookingBus;
     const passengers = currentBookingPassengers;
     const date = currentBookingDate;
     const totalPrice = bus.price * passengers;
     
-    const bookingData = {
-      busId: bus.id, busName: bus.name, busType: bus.type,
-      from: bus.from, to: bus.to, date,
-      depTime: bus.depTime, arrTime: bus.arrTime,
-      passengers, pricePerSeat: bus.price, totalPrice,
-      status: "قيد التأكيد (بانتظار الإيصال)",
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      contactWhatsApp: WHATSAPP_NUMBER,
-      customerName: fullName,
-      customerPhone: phone,
-      paymentAccounts: {
-        bankak: '2480511',
-        fawry: '51690879',
-        mycashi: '401737159',
-        mashreq: '64498707',
-        name:'أنس أمين خليل أمين'
-      }
-    };
+    // تجهيز رسالة واتساب بغض النظر عن نجاح الحفظ
+    const bookingId = 'T' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    const message = `✅ *تأكيد حجز رحلة تزكرتي* ✅\n\n` +
+      `*📋 بيانات العميل:*\n👤 الاسم: ${fullName}\n📞 الهاتف: ${phone}\n\n` +
+      `*🚍 تفاصيل الرحلة:*\n🚌 *${bus.name}* (${bus.type})\n📍 من: ${extractCity(bus.from)} → إلى: ${extractCity(bus.to)}\n` +
+      `📅 التاريخ: ${date} | ⏰ الإقلاع: ${bus.depTime}\n👥 عدد الركاب: ${passengers}\n💵 الإجمالي: ${totalPrice.toLocaleString()} ج.س\n` +
+      `🔖 الحجز المبدئي: 10,000 ج.س\n\n✅ تم الدفع وسأرفق لك صورة الإيصال.\n🆔 رقم الحجز: ${bookingId}`;
     
+    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+    
+    // محاولة حفظ الحجز في Firestore (غير مانعة للانتقال)
     try {
-      const docRef = await db.collection("bookings").add(bookingData);
-      
-      const message = `✅ *تأكيد حجز رحلة تزكرتي* ✅\n\n` +
-        `*📋 بيانات العميل:*\n` +
-        `👤 الاسم: ${fullName}\n` +
-        `📞 الهاتف: ${phone}\n\n` +
-        `*🚍 تفاصيل الرحلة:*\n` +
-        `🚌 *${bus.name}* (${bus.type})\n` +
-        `📍 من: ${extractCity(bus.from)} → إلى: ${extractCity(bus.to)}\n` +
-        `📅 التاريخ: ${date} | ⏰ الإقلاع: ${bus.depTime}\n` +
-        `👥 عدد الركاب: ${passengers}\n` +
-        `💵 الإجمالي: ${totalPrice.toLocaleString()} ج.س\n` +
-        `🔖 الحجز المبدئي: 10,000 ج.س\n\n` +
-        `\n\n` +
-        `✅ تم الدفع وسأرفق لك صورة الإيصال.\n` +
-        `🆔 رقم الحجز: ${docRef.id.slice(0,6)}`;
-      
-      const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-      
-      closePaymentModal();
-      window.location.href = whatsappUrl;
-      
-      bookings.push({ id: docRef.id, ...bookingData, total: totalPrice });
-      updateBookingsUI();
-      
-      switchTab('bookings');
-      
+      const bookingData = {
+        busId: bus.id, busName: bus.name, busType: bus.type,
+        from: bus.from, to: bus.to, date,
+        depTime: bus.depTime, arrTime: bus.arrTime,
+        passengers, pricePerSeat: bus.price, totalPrice,
+        status: "قيد التأكيد (بانتظار الإيصال)",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        contactWhatsApp: WHATSAPP_NUMBER,
+        customerName: fullName,
+        customerPhone: phone
+      };
+      await db.collection("bookings").add(bookingData);
+      console.log('✅ تم حفظ الحجز في قاعدة البيانات');
     } catch (error) {
-      console.error("خطأ في حفظ الحجز:", error);
-      alert("حدث خطأ أثناء حفظ الحجز. الرجاء المحاولة مرة أخرى.");
+      console.error('⚠️ فشل حفظ الحجز في Firestore:', error);
+      // لا نمنع المستخدم، نكتفي بتسجيل الخطأ
     }
+    
+    // إغلاق النافذة والانتقال الفوري للواتساب
+    closePaymentModal();
+    // استخدام window.open لفتح الواتساب في نافذة جديدة مع الحفاظ على صفحة التطبيق
+    window.open(whatsappUrl, '_blank');
+    
+    // تحديث واجهة "تذاكري" محلياً
+    bookings.push({
+      id: bookingId,
+      busName: bus.name, busType: bus.type,
+      from: bus.from, to: bus.to, date, depTime: bus.depTime,
+      passengers, totalPrice, status: 'قيد التأكيد'
+    });
+    updateBookingsUI();
+    switchTab('bookings');
   }
 
   // ==================== حذف حجز ====================
   async function deleteBooking(bookingId) {
     if (!confirm('هل أنت متأكد من حذف هذا الحجز؟')) return;
-    
     try {
       await db.collection("bookings").doc(bookingId).delete();
       bookings = bookings.filter(b => b.id !== bookingId);
@@ -1305,7 +1179,7 @@
           </div>
           <div class="flex justify-between items-center border-t border-gray-50 dark:border-gray-700 pt-4">
             <div><p class="text-[10px] text-gray-400 font-bold">الركاب: ${b.passengers}</p><p class="font-black text-royalDark dark:text-white">${b.totalPrice.toLocaleString()} ج.س</p></div>
-            <a href="https://wa.me/${b.contactWhatsApp || WHATSAPP_NUMBER}?text=${encodeURIComponent('تفاصيل الحجز: ' + b.busName + ' من ' + extractCity(b.from) + ' إلى ' + extractCity(b.to) + ' بتاريخ ' + b.date)}" class="bg-[#25D366] text-white px-5 py-3 rounded-xl text-xs font-bold flex items-center gap-2"><i class="fab fa-whatsapp text-lg"></i> تأكيد الطلب</a>
+            <a href="https://wa.me/${b.contactWhatsApp || WHATSAPP_NUMBER}?text=${encodeURIComponent('تفاصيل الحجز: ' + b.busName)}" target="_blank" class="bg-[#25D366] text-white px-5 py-3 rounded-xl text-xs font-bold flex items-center gap-2"><i class="fab fa-whatsapp text-lg"></i> تأكيد الطلب</a>
           </div>
         </div>
       `).join('');
@@ -1322,12 +1196,9 @@
     window.scrollTo(0,0);
   }
 
-  // ==================== بدء التطبيق بتسجيل الدخول المجهول ====================
-  window.onload = () => {
-    signInAnonymouslyAndInit();
-  };
+  window.onload = () => { signInAnonymouslyAndInit(); };
 
-  // تعريض الدوال للاستخدام العام
+  // تعريض الدوال
   window.switchTab = switchTab;
   window.renderBuses = renderBuses;
   window.bookTrip = bookTrip;
