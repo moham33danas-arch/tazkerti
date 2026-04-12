@@ -34,7 +34,7 @@
       display: flex; align-items: center; justify-content: center; z-index: 1000;
     }
     .modal-card {
-      background: white; border-radius: 1.5rem; max-width: 550px; width: 100%;
+      background: white; border-radius: 1.5rem; max-width: 600px; width: 100%;
       max-height: 90vh; overflow-y: auto; padding: 1.5rem; margin: 1rem;
     }
     @media (prefers-color-scheme: dark) {
@@ -216,14 +216,36 @@
               </div>
             </div>
             
+            <!-- وقت المغادرة (12 ساعة) -->
             <div>
               <label class="block text-xs font-bold mb-1">وقت المغادرة *</label>
-              <input type="time" id="busDepTime" required class="w-full p-3 border rounded-xl">
+              <div class="flex gap-1">
+                <select id="depHour" class="w-20 p-3 border rounded-xl">
+                  <!-- 1-12 -->
+                </select>
+                <select id="depMinute" class="w-20 p-3 border rounded-xl">
+                  <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+                </select>
+                <select id="depPeriod" class="w-20 p-3 border rounded-xl">
+                  <option value="AM">صباحاً</option><option value="PM">مساءً</option>
+                </select>
+              </div>
             </div>
+            
+            <!-- وقت الوصول (12 ساعة) -->
             <div>
               <label class="block text-xs font-bold mb-1">وقت الوصول *</label>
-              <input type="time" id="busArrTime" required class="w-full p-3 border rounded-xl">
+              <div class="flex gap-1">
+                <select id="arrHour" class="w-20 p-3 border rounded-xl"></select>
+                <select id="arrMinute" class="w-20 p-3 border rounded-xl">
+                  <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+                </select>
+                <select id="arrPeriod" class="w-20 p-3 border rounded-xl">
+                  <option value="AM">صباحاً</option><option value="PM">مساءً</option>
+                </select>
+              </div>
             </div>
+            
             <div>
               <label class="block text-xs font-bold mb-1">السعر (بالجنيه) *</label>
               <input type="number" id="busPrice" required class="w-full p-3 border rounded-xl">
@@ -288,6 +310,33 @@
 
     let allCities = [];
 
+    // ==================== دوال مساعدة للوقت ====================
+    function convert24To12(time24) {
+      if (!time24) return { hour: 12, minute: '00', period: 'AM' };
+      const [hour24, minute] = time24.split(':').map(Number);
+      const period = hour24 >= 12 ? 'PM' : 'AM';
+      let hour12 = hour24 % 12;
+      if (hour12 === 0) hour12 = 12;
+      return { hour: hour12, minute: minute.toString().padStart(2, '0'), period };
+    }
+
+    function convert12To24(hour12, minute, period) {
+      let hour24 = parseInt(hour12);
+      if (period === 'PM' && hour24 !== 12) hour24 += 12;
+      if (period === 'AM' && hour24 === 12) hour24 = 0;
+      return `${hour24.toString().padStart(2, '0')}:${minute}`;
+    }
+
+    function populateHourSelect(selectElement) {
+      selectElement.innerHTML = '';
+      for (let i = 1; i <= 12; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        selectElement.appendChild(option);
+      }
+    }
+
     // ==================== دالة تسجيل الدخول ====================
     async function handleLogin(e) {
       e.preventDefault();
@@ -296,11 +345,8 @@
       const errorDiv = document.getElementById('loginError');
       
       try {
-        // تعيين عدم تذكر الجلسة (NONE)
         await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-        // تسجيل الدخول
         await auth.signInWithEmailAndPassword(email, password);
-        // سيتم التعامل مع نجاح الدخول عبر onAuthStateChanged
       } catch (error) {
         console.error('خطأ تسجيل الدخول:', error);
         errorDiv.textContent = 'فشل تسجيل الدخول. تأكد من البريد وكلمة المرور.';
@@ -308,36 +354,31 @@
       }
     }
 
-    // ==================== دالة تسجيل الخروج ====================
     async function handleLogout() {
       try {
         await auth.signOut();
-        // سيتم التعامل مع الخروج عبر onAuthStateChanged
       } catch (error) {
         console.error('خطأ تسجيل الخروج:', error);
       }
     }
 
-    // ==================== مراقبة حالة المصادقة ====================
     auth.onAuthStateChanged(user => {
       const loginScreen = document.getElementById('loginScreen');
       const mainContent = document.getElementById('mainContent');
       const userEmailDisplay = document.getElementById('userEmailDisplay');
       
       if (user) {
-        // مستخدم مسجل الدخول
         loginScreen.style.display = 'none';
         mainContent.style.display = 'block';
         if (userEmailDisplay) userEmailDisplay.textContent = user.email;
-        
-        // تحميل البيانات الأولية
         loadAllCities();
         loadBusesTable();
+        // ملء قوائم الساعات
+        populateHourSelect(document.getElementById('depHour'));
+        populateHourSelect(document.getElementById('arrHour'));
       } else {
-        // لا يوجد مستخدم
         loginScreen.style.display = 'flex';
         mainContent.style.display = 'none';
-        // مسح أي بيانات قديمة
         document.getElementById('loginForm').reset();
         document.getElementById('loginError').classList.add('hidden');
       }
@@ -450,7 +491,13 @@
           return;
         }
         
-        tbody.innerHTML = buses.map(bus => `
+        tbody.innerHTML = buses.map(bus => {
+          const dep12 = convert24To12(bus.depTime);
+          const arr12 = convert24To12(bus.arrTime);
+          const depTimeDisplay = `${dep12.hour}:${dep12.minute} ${dep12.period === 'AM' ? 'ص' : 'م'}`;
+          const arrTimeDisplay = `${arr12.hour}:${arr12.minute} ${arr12.period === 'AM' ? 'ص' : 'م'}`;
+          
+          return `
           <tr>
             <td class="p-2">
               <img src="${bus.img || 'https://images.pexels.com/photos/2790386/pexels-photo-2790386.jpeg?auto=compress&cs=tinysrgb&w=600'}" 
@@ -459,7 +506,7 @@
             <td class="p-4 font-bold">${bus.name || '-'}</td>
             <td class="p-4">${bus.type || '-'}</td>
             <td class="p-4">${bus.from || '-'} → ${bus.to || '-'}</td>
-            <td class="p-4">${bus.depTime || '--:--'} - ${bus.arrTime || '--:--'}</td>
+            <td class="p-4">${depTimeDisplay} - ${arrTimeDisplay}</td>
             <td class="p-4 font-bold">${(bus.price || 0).toLocaleString()} ج.س</td>
             <td class="p-4">
               <div class="flex gap-2 justify-center">
@@ -472,7 +519,7 @@
               </div>
             </td>
           </tr>
-        `).join('');
+        `}).join('');
       } catch (e) {
         tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">خطأ في التحميل</td></tr>`;
       }
@@ -484,14 +531,19 @@
       document.getElementById('busId').value = '';
       document.getElementById('busName').value = '';
       document.getElementById('busType').value = '';
-      document.getElementById('busDepTime').value = '08:00';
-      document.getElementById('busArrTime').value = '14:00';
       document.getElementById('busPrice').value = '';
       document.getElementById('busImg').value = '';
       document.getElementById('quickAddFrom').classList.add('hidden');
       document.getElementById('quickAddTo').classList.add('hidden');
       
-      // تعيين قيم افتراضية
+      // تعيين وقت افتراضي 08:00 صباحاً
+      document.getElementById('depHour').value = 8;
+      document.getElementById('depMinute').value = '00';
+      document.getElementById('depPeriod').value = 'AM';
+      document.getElementById('arrHour').value = 2;
+      document.getElementById('arrMinute').value = '00';
+      document.getElementById('arrPeriod').value = 'PM';
+      
       if (allCities.length) {
         const fromCities = allCities.filter(c => c.type === 'from' || c.type === 'both');
         const toCities = allCities.filter(c => c.type === 'to' || c.type === 'both');
@@ -514,10 +566,19 @@
         document.getElementById('busType').value = bus.type || '';
         document.getElementById('busFrom').value = bus.from || '';
         document.getElementById('busTo').value = bus.to || '';
-        document.getElementById('busDepTime').value = bus.depTime || '';
-        document.getElementById('busArrTime').value = bus.arrTime || '';
         document.getElementById('busPrice').value = bus.price || '';
         document.getElementById('busImg').value = bus.img || '';
+        
+        const dep12 = convert24To12(bus.depTime);
+        document.getElementById('depHour').value = dep12.hour;
+        document.getElementById('depMinute').value = dep12.minute;
+        document.getElementById('depPeriod').value = dep12.period;
+        
+        const arr12 = convert24To12(bus.arrTime);
+        document.getElementById('arrHour').value = arr12.hour;
+        document.getElementById('arrMinute').value = arr12.minute;
+        document.getElementById('arrPeriod').value = arr12.period;
+        
         document.getElementById('quickAddFrom').classList.add('hidden');
         document.getElementById('quickAddTo').classList.add('hidden');
         
@@ -530,13 +591,25 @@
     async function saveBus(e) {
       e.preventDefault();
       const id = document.getElementById('busId').value;
+      
+      const depTime24 = convert12To24(
+        document.getElementById('depHour').value,
+        document.getElementById('depMinute').value,
+        document.getElementById('depPeriod').value
+      );
+      const arrTime24 = convert12To24(
+        document.getElementById('arrHour').value,
+        document.getElementById('arrMinute').value,
+        document.getElementById('arrPeriod').value
+      );
+      
       const data = {
         name: document.getElementById('busName').value.trim(),
         type: document.getElementById('busType').value.trim(),
         from: document.getElementById('busFrom').value,
         to: document.getElementById('busTo').value,
-        depTime: document.getElementById('busDepTime').value,
-        arrTime: document.getElementById('busArrTime').value,
+        depTime: depTime24,
+        arrTime: arrTime24,
         price: parseInt(document.getElementById('busPrice').value),
         img: document.getElementById('busImg').value.trim() || 'https://images.pexels.com/photos/2790386/pexels-photo-2790386.jpeg?auto=compress&cs=tinysrgb&w=600'
       };
@@ -581,14 +654,10 @@
       try {
         await db.collection("cities").add({ name, type: cityType });
         nameInput.value = '';
-        // إخفاء صندوق الإضافة السريعة
         document.getElementById(`quickAdd${type === 'from' ? 'From' : 'To'}`).classList.add('hidden');
-        // تحديث القوائم
         await loadAllCities();
-        // تحديد المنطقة المضافة حديثاً في القائمة المنسدلة
         const select = document.getElementById(`bus${type === 'from' ? 'From' : 'To'}`);
         select.value = name;
-        // تحديث جدول المناطق إن كان مفتوحاً
         if (document.getElementById('panelCities').style.display !== 'none') {
           loadCitiesTable();
         }
@@ -634,7 +703,7 @@
         loadCitiesTable();
       }
       renderCityMiniList();
-      loadBusesTable(); // تحديث عرض أسماء المناطق في الجدول
+      loadBusesTable();
     }
 
     // ==================== تعريض الدوال ====================
