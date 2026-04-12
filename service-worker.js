@@ -1,165 +1,104 @@
-// ========== الأمان والحماية ==========
-function safeHTML(str) {
-    if (!str) return '';
+
+// ================== M-STORE Service Worker ==================
+// الإصدار: ديناميكي - لا حاجة لتغيير هذا الملف يدويًا أبدًا
+// =============================================================
+
+const CACHE_NAME = 'mstore-cache-v1';
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/offline.html'
+];
+
+// ========== تثبيت وتفعيل فوري ==========
+self.addEventListener('install', event => {
+  console.log('[SW] تثبيت...');
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+  );
+});
+
+self.addEventListener('activate', event => {
+  console.log('[SW] تفعيل...');
+  event.waitUntil(
+    clients.claim().then(() => {
+      return caches.keys().then(keys => 
+        Promise.all(keys.map(key => key !== CACHE_NAME && caches.delete(key)))
+      );
+    })
+  );
+});
+
+// ========== آلية التحقق من التغيير في الصفحة الرئيسية ==========
+async function checkForMainPageUpdate() {
+  try {
+    // 1. جلب رأس الملف فقط (HEAD) لمعرفة Last-Modified
+    const response = await fetch('/index.html', { method: 'HEAD', cache: 'no-cache' });
+    const newLastModified = response.headers.get('Last-Modified');
     
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    if (!newLastModified) return false; // السيرفر لا يرسل Last-Modified
+
+    // 2. مقارنة مع القيمة المخزنة
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match('/index.html');
+    
+    if (!cachedResponse) return true; // لا يوجد نسخة مخزنة مسبقاً
+    
+    const cachedLastModified = cachedResponse.headers.get('Last-Modified');
+    
+    return newLastModified !== cachedLastModified;
+  } catch (err) {
+    console.error('[SW] فشل التحقق من التحديث:', err);
+    return false;
+  }
 }
 
-function displaySafeText(elementId, text) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.textContent = text;
-    }
-}
-
-// ========== Service Worker Registration ==========
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then(function(registration) {
-                console.log('✅ Service Worker registered with scope:', registration.scope);
-                
-                // تحقق إذا فيه تحديث جديد
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    console.log('🔄 New Service Worker found!');
-                    
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            console.log('📦 New content available - please refresh!');
-                            showUpdateNotification();
-                        }
-                    });
-                });
-            })
-            .catch(function(error) {
-                console.log('❌ Service Worker registration failed:', error);
-            });
-    });
-
-    // تحديث الصفحة عندما يصبح الـ Service Worker جاهز
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-            refreshing = true;
-            console.log('🔄 Controller changed - reloading page');
-            window.location.reload();
-        }
-    });
-}
-
-// ========== إشعار التحديث ==========
-function showUpdateNotification() {
-    // إنشاء عنصر الإشعار
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #1e3a8a;
-        color: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 10000;
-        max-width: 300px;
-        font-family: Arial, sans-serif;
-    `;
-    
-    notification.innerHTML = safeHTML(`
-        <div style="margin-bottom: 10px;">
-            <strong>تحديث جديد متاح!</strong>
-        </div>
-        <button onclick="location.reload()" style="
-            background: white;
-            color: #1e3a8a;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        ">تحديث الآن</button>
-    `);
-    
-    document.body.appendChild(notification);
-    
-    // إزالة الإشعار تلقائياً بعد 10 ثواني
-    setTimeout(() => {
-        if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-        }
-    }, 10000);
-}
-
-// ========== إدارة الحالة ==========
-const AppState = {
-    // حالة التطبيق
-    currentUser: null,
-    isOnline: navigator.onLine,
-    
-    // تهيئة التطبيق
-    init() {
-        this.setupEventListeners();
-        this.checkAuthStatus();
-        console.log('🚀 M-STORE Initialized');
-    },
-    
-    // إعداد مستمعي الأحداث
-    setupEventListeners() {
-        // أحداث الاتصال بالإنترنت
-        window.addEventListener('online', () => {
-            this.isOnline = true;
-            this.showOnlineStatus();
-        });
-        
-        window.addEventListener('offline', () => {
-            this.isOnline = false;
-            this.showOfflineStatus();
-        });
-        
-        // منع الإجراءات الافتراضية
-        document.addEventListener('contextmenu', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                return;
-            }
-            e.preventDefault();
-        });
-    },
-    
-    // التحقق من حالة المصادقة
-    checkAuthStatus() {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-            this.currentUser = this.validateToken(token);
-        }
-    },
-    
-    // التحقق من صحة التوكن
-    validateToken(token) {
-        try {
-            // منطق التحقق من التوكن
-            return JSON.parse(atob(token.split('.')[1]));
-        } catch (error) {
-            localStorage.removeItem('authToken');
-            return null;
-        }
-    },
-    
-    // عرض حالة الاتصال
-    showOnlineStatus() {
-        this.showToast('✅ تم استعادة الاتصال بالإنترنت', 'success');
-    },
-    
-    showOfflineStatus() {
-        this.showToast('⚠️ أنت غير متصل بالإنترنت', 'warning');
-    },
-    
-    // عرض إشعارات
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        const styles = {
-            info: 'background: #3b82f6; color: white;',
-            success: 'background: #10b981; color: white;',
+// ========== استراتيجية الجلب مع فحص التحديث للصفحة الرئيسية ==========
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
   
+  // نتعامل مع الصفحة الرئيسية فقط
+  if (event.request.mode === 'navigate' && url.pathname === '/') {
+    event.respondWith(
+      (async () => {
+        // 1. نعطي المستخدم النسخة المخزنة فوراً (سريعة)
+        const cache = await caches.open(CACHE_NAME);
+        const cachedResponse = await cache.match('/index.html');
+        
+        // 2. في الخلفية نتحقق من وجود تحديث
+        (async () => {
+          const hasUpdate = await checkForMainPageUpdate();
+          if (hasUpdate) {
+            console.log('[SW] تم اكتشاف تحديث في الصفحة الرئيسية!');
+            // نجلب النسخة الجديدة ونخزنها
+            const networkResponse = await fetch('/index.html', { cache: 'no-cache' });
+            if (networkResponse.ok) {
+              await cache.put('/index.html', networkResponse.clone());
+              // نرسل إشعار لكل العملاء بأن هناك تحديثاً
+              const allClients = await clients.matchAll();
+              allClients.forEach(client => {
+                client.postMessage({ type: 'MAIN_PAGE_UPDATED' });
+              });
+            }
+          }
+        })();
+        
+        // 3. نرجع النسخة المخزنة حالياً
+        return cachedResponse || fetch(event.request);
+      })()
+    );
+    return;
+  }
+  
+  // باقي الطلبات: استراتيجية عادية (شبكة أولاً)
+  event.respondWith(
+    fetch(event.request)
+      .then(networkResponse => {
+        const responseClone = networkResponse.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
+  );
+});
