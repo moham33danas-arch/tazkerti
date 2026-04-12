@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم تزكرتي - بسيطة وسريعة</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- خط القاهرة -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  
+  <style>
+    body { font-family: 'Cairo', sans-serif; background: #f8fafc; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0f172a; color: #e2e8f0; }
+      .bg-white { background-color: #1e293b !important; }
+      .bg-gray-50 { background-color: #1e293b !important; }
+      .text-gray-800 { color: #e2e8f0 !important; }
+      .border-gray-200 { border-color: #334155 !important; }
+      input, select, textarea { background-color: #0f172a !important; color: #e2e8f0 !important; border-color: #334155 !important; }
+      input::placeholder { color: #64748b !important; }
+    }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal-card {
+      background: white; border-radius: 1.5rem; max-width: 550px; width: 100%;
+      max-height: 90vh; overflow-y: auto; padding: 1.5rem; margin: 1rem;
+    }
+    @media (prefers-color-scheme: dark) {
+      .modal-card { background: #1e293b; }
+    }
+    .bus-image-preview {
+      width: 60px; height: 60px; border-radius: 12px; object-fit: cover; background: #e2e8f0;
+    }
+    .quick-add-box {
+      background: #f1f5f9; border-radius: 1rem; padding: 0.75rem; margin-top: 0.5rem;
+    }
+    .dark .quick-add-box { background: #1e293b; }
+  </style>
+</head>
+<body class="p-4 md:p-6">
+
+  <div class="max-w-7xl mx-auto">
+    <!-- رأس الصفحة -->
+    <header class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 bg-blue-900 rounded-xl flex items-center justify-center text-amber-400 text-2xl">
+          <i class="fas fa-ticket-alt"></i>
+        </div>
+        <h1 class="text-3xl font-black text-blue-900 dark:text-white">لوحة تحكم تزكرتي</h1>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="showAddCityStandalone()" class="bg-amber-400 text-blue-900 px-4 py-2 rounded-xl font-bold text-sm hover:bg-amber-500">
+          <i class="fas fa-city ml-1"></i> إدارة المناطق
+        </button>
+        <button onclick="showAddBusModal()" class="bg-blue-900 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-950">
+          <i class="fas fa-plus-circle ml-1"></i> إضافة رحلة
+        </button>
+      </div>
+    </header>
+
+    <!-- تبويبات -->
+    <div class="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6">
+      <button onclick="switchTab('buses')" id="tabBuses" class="px-5 py-2 font-bold text-blue-900 dark:text-amber-400 border-b-2 border-blue-900 dark:border-amber-400">
+        <i class="fas fa-bus ml-1"></i> الرحلات
+      </button>
+      <button onclick="switchTab('cities')" id="tabCities" class="px-5 py-2 font-bold text-gray-500 dark:text-gray-400">
+        <i class="fas fa-city ml-1"></i> المناطق
+      </button>
+    </div>
+
+    <!-- جدول الرحلات -->
+    <div id="panelBuses">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold">
+              <tr>
+                <th class="p-4 text-right">الصورة</th>
+                <th class="p-4 text-right">اسم الباص</th>
+                <th class="p-4 text-right">النوع</th>
+                <th class="p-4 text-right">من → إلى</th>
+                <th class="p-4 text-right">المواعيد</th>
+                <th class="p-4 text-right">السعر</th>
+                <th class="p-4 text-center">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="busesTableBody" class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr><td colspan="7" class="p-6 text-center text-gray-400">جاري تحميل الرحلات...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- جدول المناطق -->
+    <div id="panelCities" style="display: none;">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold">
+            <tr>
+              <th class="p-4 text-right">اسم المنطقة</th>
+              <th class="p-4 text-right">النوع</th>
+              <th class="p-4 text-center">إجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="citiesTableBody" class="divide-y divide-gray-200 dark:divide-gray-700">
+            <tr><td colspan="3" class="p-6 text-center text-gray-400">جاري تحميل المناطق...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال إضافة / تعديل رحلة -->
+  <div id="busModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <h2 id="busModalTitle" class="text-xl font-black mb-4">إضافة رحلة جديدة</h2>
+      <form id="busForm" onsubmit="saveBus(event)">
+        <input type="hidden" id="busId">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold mb-1">اسم الباص *</label>
+            <input type="text" id="busName" required class="w-full p-3 border rounded-xl">
+          </div>
+          <div>
+            <label class="block text-xs font-bold mb-1">النوع *</label>
+            <input type="text" id="busType" required placeholder="مثال: VIP" class="w-full p-3 border rounded-xl">
+          </div>
+          
+          <!-- حقل "من" مع إضافة سريعة -->
+          <div>
+            <label class="block text-xs font-bold mb-1">محطة المغادرة *</label>
+            <div class="flex gap-2">
+              <select id="busFrom" required class="flex-1 p-3 border rounded-xl"></select>
+              <button type="button" onclick="toggleQuickAdd('from')" class="bg-gray-200 dark:bg-gray-700 px-3 rounded-xl text-lg" title="إضافة منطقة سريعة">+</button>
+            </div>
+            <div id="quickAddFrom" class="quick-add-box hidden mt-2">
+              <input type="text" id="quickFromName" placeholder="اسم المنطقة الجديدة" class="w-full p-2 border rounded-lg mb-2">
+              <select id="quickFromType" class="w-full p-2 border rounded-lg mb-2">
+                <option value="from">مغادرة فقط</option>
+                <option value="both">مغادرة ووصول</option>
+              </select>
+              <button type="button" onclick="saveQuickCity('from')" class="bg-blue-900 text-white w-full py-2 rounded-lg text-sm">حفظ وإضافة</button>
+            </div>
+          </div>
+          
+          <!-- حقل "إلى" مع إضافة سريعة -->
+          <div>
+            <label class="block text-xs font-bold mb-1">محطة الوصول *</label>
+            <div class="flex gap-2">
+              <select id="busTo" required class="flex-1 p-3 border rounded-xl"></select>
+              <button type="button" onclick="toggleQuickAdd('to')" class="bg-gray-200 dark:bg-gray-700 px-3 rounded-xl text-lg" title="إضافة منطقة سريعة">+</button>
+            </div>
+            <div id="quickAddTo" class="quick-add-box hidden mt-2">
+              <input type="text" id="quickToName" placeholder="اسم المنطقة الجديدة" class="w-full p-2 border rounded-lg mb-2">
+              <select id="quickToType" class="w-full p-2 border rounded-lg mb-2">
+                <option value="to">وصول فقط</option>
+                <option value="both">مغادرة ووصول</option>
+              </select>
+              <button type="button" onclick="saveQuickCity('to')" class="bg-blue-900 text-white w-full py-2 rounded-lg text-sm">حفظ وإضافة</button>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-xs font-bold mb-1">وقت المغادرة *</label>
+            <input type="time" id="busDepTime" required class="w-full p-3 border rounded-xl">
+          </div>
+          <div>
+            <label class="block text-xs font-bold mb-1">وقت الوصول *</label>
+            <input type="time" id="busArrTime" required class="w-full p-3 border rounded-xl">
+          </div>
+          <div>
+            <label class="block text-xs font-bold mb-1">السعر (بالجنيه) *</label>
+            <input type="number" id="busPrice" required class="w-full p-3 border rounded-xl">
+          </div>
+          <div>
+            <label class="block text-xs font-bold mb-1">رابط الصورة</label>
+            <input type="text" id="busImg" placeholder="اختياري" class="w-full p-3 border rounded-xl">
+          </div>
+        </div>
+        <div class="flex gap-3 mt-6">
+          <button type="button" onclick="closeBusModal()" class="flex-1 bg-gray-200 dark:bg-gray-700 py-3 rounded-xl font-bold">إلغاء</button>
+          <button type="submit" class="flex-1 bg-blue-900 text-white py-3 rounded-xl font-bold">حفظ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- مودال إدارة المناطق (منفصل) -->
+  <div id="cityManageModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <h2 class="text-xl font-black mb-4">إدارة المناطق</h2>
+      <div class="mb-4">
+        <label class="block text-xs font-bold mb-1">اسم المنطقة *</label>
+        <input type="text" id="standaloneCityName" class="w-full p-3 border rounded-xl">
+      </div>
+      <div class="mb-4">
+        <label class="block text-xs font-bold mb-1">النوع *</label>
+        <select id="standaloneCityType" class="w-full p-3 border rounded-xl">
+          <option value="both">مغادرة ووصول</option>
+          <option value="from">مغادرة فقط</option>
+          <option value="to">وصول فقط</option>
+        </select>
+      </div>
+      <div class="flex gap-3">
+        <button type="button" onclick="closeCityManageModal()" class="flex-1 bg-gray-200 dark:bg-gray-700 py-3 rounded-xl font-bold">إلغاء</button>
+        <button type="button" onclick="saveStandaloneCity()" class="flex-1 bg-blue-900 text-white py-3 rounded-xl font-bold">إضافة</button>
+      </div>
+      <hr class="my-4 border-gray-200 dark:border-gray-700">
+      <h3 class="font-bold mb-2">المناطق الحالية</h3>
+      <div id="cityListMini" class="max-h-60 overflow-y-auto space-y-2">
+        <!-- قائمة مصغرة -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== تكوين Firebase ====================
+    const firebaseConfig = {
+      apiKey: "AIzaSyCqhawEguWOGyIOPjMdeSLcc454VKxZIpo",
+      authDomain: "buses-2e2d0.firebaseapp.com",
+      projectId: "buses-2e2d0",
+      storageBucket: "buses-2e2d0.firebasestorage.app",
+      messagingSenderId: "379904295972",
+      appId: "1:379904295972:web:b84e9a9c9aab853469c4b1",
+      measurementId: "G-Z0XJ4TPPBT"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let allCities = [];
+
+    // ==================== تهيئة ====================
+    window.onload = () => {
+      loadAllCities();
+      loadBusesTable();
+    };
+
+    async function loadAllCities() {
+      try {
+        const snap = await db.collection("cities").get();
+        allCities = [];
+        snap.forEach(doc => allCities.push({ id: doc.id, ...doc.data() }));
+        populateBusSelects();
+        renderCityMiniList();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function populateBusSelects() {
+      const fromSelect = document.getElementById('busFrom');
+      const toSelect = document.getElementById('busTo');
+      if (!fromSelect || !toSelect) return;
+      
+      const fromCities = allCities.filter(c => c.type === 'from' || c.type === 'both');
+      const toCities = allCities.filter(c => c.type === 'to' || c.type === 'both');
+      
+      fromSelect.innerHTML = fromCities.length ? fromCities.map(c => `<option value="${c.name}">${c.name}</option>`).join('') : '<option value="">لا توجد مناطق</option>';
+      toSelect.innerHTML = toCities.length ? toCities.map(c => `<option value="${c.name}">${c.name}</option>`).join('') : '<option value="">لا توجد مناطق</option>';
+    }
+
+    function renderCityMiniList() {
+      const container = document.getElementById('cityListMini');
+      if (!container) return;
+      if (allCities.length === 0) {
+        container.innerHTML = '<div class="text-gray-400 text-sm">لا توجد مناطق</div>';
+        return;
+      }
+      container.innerHTML = allCities.map(city => `
+        <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+          <span><span class="font-bold">${city.name}</span> <span class="text-xs text-gray-500">(${city.type === 'both' ? 'مغادرة ووصول' : city.type === 'from' ? 'مغادرة' : 'وصول'})</span></span>
+          <button onclick="deleteCity('${city.id}')" class="text-red-500"><i class="fas fa-trash"></i></button>
+        </div>
+      `).join('');
+    }
+
+    // ==================== التبويبات ====================
+    function switchTab(tab) {
+      document.getElementById('panelBuses').style.display = tab === 'buses' ? 'block' : 'none';
+      document.getElementById('panelCities').style.display = tab === 'cities' ? 'block' : 'none';
+      
+      document.getElementById('tabBuses').className = tab === 'buses' 
+        ? 'px-5 py-2 font-bold text-blue-900 dark:text-amber-400 border-b-2 border-blue-900 dark:border-amber-400'
+        : 'px-5 py-2 font-bold text-gray-500 dark:text-gray-400';
+      document.getElementById('tabCities').className = tab === 'cities' 
+        ? 'px-5 py-2 font-bold text-blue-900 dark:text-amber-400 border-b-2 border-blue-900 dark:border-amber-400'
+        : 'px-5 py-2 font-bold text-gray-500 dark:text-gray-400';
+      
+      if (tab === 'cities') loadCitiesTable();
+      else loadBusesTable();
+    }
+
+    // ==================== جدول المناطق ====================
+    async function loadCitiesTable() {
+      const tbody = document.getElementById('citiesTableBody');
+      try {
+        const snap = await db.collection("cities").get();
+        const cities = [];
+        snap.forEach(doc => cities.push({ id: doc.id, ...doc.data() }));
+        allCities = cities;
+        
+        if (cities.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="3" class="p-6 text-center text-gray-400">لا توجد مناطق مضافة</td></tr>`;
+          return;
+        }
+        
+        tbody.innerHTML = cities.map(city => `
+          <tr>
+            <td class="p-4 font-bold">${city.name}</td>
+            <td class="p-4">
+              <span class="px-2 py-1 rounded-full text-xs font-bold 
+                ${city.type === 'both' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                  city.type === 'from' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 
+                  'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'}">
+                ${city.type === 'both' ? 'مغادرة ووصول' : city.type === 'from' ? 'مغادرة فقط' : 'وصول فقط'}
+              </span>
+            </td>
+            <td class="p-4 text-center">
+              <button onclick="deleteCity('${city.id}')" class="text-red-500 hover:text-red-700 p-2">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `).join('');
+        populateBusSelects();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3" class="p-6 text-center text-red-500">خطأ في التحميل</td></tr>`;
+      }
+    }
+
+    // ==================== جدول الرحلات ====================
+    async function loadBusesTable() {
+      const tbody = document.getElementById('busesTableBody');
+      try {
+        const snap = await db.collection("buses").get();
+        const buses = [];
+        snap.forEach(doc => buses.push({ id: doc.id, ...doc.data() }));
+        
+        if (buses.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-gray-400">لا توجد رحلات مضافة</td></tr>`;
+          return;
+        }
+        
+        tbody.innerHTML = buses.map(bus => `
+          <tr>
+            <td class="p-2">
+              <img src="${bus.img || 'https://images.pexels.com/photos/2790386/pexels-photo-2790386.jpeg?auto=compress&cs=tinysrgb&w=600'}" 
+                   class="bus-image-preview w-16 h-16 rounded-xl object-cover bg-gray-200">
+            </td>
+            <td class="p-4 font-bold">${bus.name || '-'}</td>
+            <td class="p-4">${bus.type || '-'}</td>
+            <td class="p-4">${bus.from || '-'} → ${bus.to || '-'}</td>
+            <td class="p-4">${bus.depTime || '--:--'} - ${bus.arrTime || '--:--'}</td>
+            <td class="p-4 font-bold">${(bus.price || 0).toLocaleString()} ج.س</td>
+            <td class="p-4">
+              <div class="flex gap-2 justify-center">
+                <button onclick="editBus('${bus.id}')" class="text-amber-500 hover:text-amber-700 p-2" title="تعديل">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="deleteBus('${bus.id}')" class="text-red-500 hover:text-red-700 p-2" title="حذف">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">خطأ في التحميل</td></tr>`;
+      }
+    }
+
+    // ==================== إدارة الرحلات ====================
+    function showAddBusModal() {
+      document.getElementById('busModalTitle').innerText = 'إضافة رحلة جديدة';
+      document.getElementById('busId').value = '';
+      document.getElementById('busName').value = '';
+      document.getElementById('busType').value = '';
+      document.getElementById('busDepTime').value = '08:00';
+      document.getElementById('busArrTime').value = '14:00';
+      document.getElementById('busPrice').value = '';
+      document.getElementById('busImg').value = '';
+      document.getElementById('quickAddFrom').classList.add('hidden');
+      document.getElementById('quickAddTo').classList.add('hidden');
+      
+      // تعيين قيم افتراضية
+      if (allCities.length) {
+        const fromCities = allCities.filter(c => c.type === 'from' || c.type === 'both');
+        const toCities = allCities.filter(c => c.type === 'to' || c.type === 'both');
+        if (fromCities.length) document.getElementById('busFrom').value = fromCities[0].name;
+        if (toCities.length) document.getElementById('busTo').value = toCities[0].name;
+      }
+      
+      document.getElementById('busModal').style.display = 'flex';
+    }
+
+    async function editBus(id) {
+      try {
+        const doc = await db.collection("buses").doc(id).get();
+        if (!doc.exists) return alert('الرحلة غير موجودة');
+        const bus = doc.data();
+        
+        document.getElementById('busModalTitle').innerText = 'تعديل الرحلة';
+        document.getElementById('busId').value = id;
+        document.getElementById('busName').value = bus.name || '';
+        document.getElementById('busType').value = bus.type || '';
+        document.getElementById('busFrom').value = bus.from || '';
+        document.getElementById('busTo').value = bus.to || '';
+        document.getElementById('busDepTime').value = bus.depTime || '';
+        document.getElementById('busArrTime').value = bus.arrTime || '';
+        document.getElementById('busPrice').value = bus.price || '';
+        document.getElementById('busImg').value = bus.img || '';
+        document.getElementById('quickAddFrom').classList.add('hidden');
+        document.getElementById('quickAddTo').classList.add('hidden');
+        
+        document.getElementById('busModal').style.display = 'flex';
+      } catch (e) {
+        alert('خطأ في تحميل بيانات الرحلة');
+      }
+    }
+
+    async function saveBus(e) {
+      e.preventDefault();
+      const id = document.getElementById('busId').value;
+      const data = {
+        name: document.getElementById('busName').value.trim(),
+        type: document.getElementById('busType').value.trim(),
+        from: document.getElementById('busFrom').value,
+        to: document.getElementById('busTo').value,
+        depTime: document.getElementById('busDepTime').value,
+        arrTime: document.getElementById('busArrTime').value,
+        price: parseInt(document.getElementById('busPrice').value),
+        img: document.getElementById('busImg').value.trim() || 'https://images.pexels.com/photos/2790386/pexels-photo-2790386.jpeg?auto=compress&cs=tinysrgb&w=600'
+      };
+      
+      try {
+        if (id) {
+          await db.collection("buses").doc(id).update(data);
+        } else {
+          await db.collection("buses").add(data);
+        }
+        closeBusModal();
+        loadBusesTable();
+      } catch (e) {
+        alert('خطأ في حفظ الرحلة: ' + e.message);
+      }
+    }
+
+    async function deleteBus(id) {
+      if (!confirm('هل أنت متأكد من حذف هذه الرحلة؟')) return;
+      await db.collection("buses").doc(id).delete();
+      loadBusesTable();
+    }
+
+    function closeBusModal() {
+      document.getElementById('busModal').style.display = 'none';
+    }
+
+    // ==================== إضافة سريعة للمناطق ====================
+    function toggleQuickAdd(type) {
+      const box = document.getElementById(`quickAdd${type === 'from' ? 'From' : 'To'}`);
+      box.classList.toggle('hidden');
+    }
+
+    async function saveQuickCity(type) {
+      const nameInput = document.getElementById(`quick${type === 'from' ? 'From' : 'To'}Name`);
+      const typeSelect = document.getElementById(`quick${type === 'from' ? 'From' : 'To'}Type`);
+      const name = nameInput.value.trim();
+      const cityType = typeSelect.value;
+      
+      if (!name) return alert('الرجاء إدخال اسم المنطقة');
+      
+      try {
+        await db.collection("cities").add({ name, type: cityType });
+        nameInput.value = '';
+        // إخفاء صندوق الإضافة السريعة
+        document.getElementById(`quickAdd${type === 'from' ? 'From' : 'To'}`).classList.add('hidden');
+        // تحديث القوائم
+        await loadAllCities();
+        // تحديد المنطقة المضافة حديثاً في القائمة المنسدلة
+        const select = document.getElementById(`bus${type === 'from' ? 'From' : 'To'}`);
+        select.value = name;
+        // تحديث جدول المناطق إن كان مفتوحاً
+        if (document.getElementById('panelCities').style.display !== 'none') {
+          loadCitiesTable();
+        }
+      } catch (e) {
+        alert('خطأ في إضافة المنطقة');
+      }
+    }
+
+    // ==================== إدارة منفصلة للمناطق ====================
+    function showAddCityStandalone() {
+      document.getElementById('standaloneCityName').value = '';
+      document.getElementById('standaloneCityType').value = 'both';
+      renderCityMiniList();
+      document.getElementById('cityManageModal').style.display = 'flex';
+    }
+
+    function closeCityManageModal() {
+      document.getElementById('cityManageModal').style.display = 'none';
+    }
+
+    async function saveStandaloneCity() {
+      const name = document.getElementById('standaloneCityName').value.trim();
+      const type = document.getElementById('standaloneCityType').value;
+      if (!name) return alert('الرجاء إدخال اسم المنطقة');
+      try {
+        await db.collection("cities").add({ name, type });
+        document.getElementById('standaloneCityName').value = '';
+        await loadAllCities();
+        renderCityMiniList();
+        if (document.getElementById('panelCities').style.display !== 'none') {
+          loadCitiesTable();
+        }
+      } catch (e) {
+        alert('خطأ في الحفظ');
+      }
+    }
+
+    async function deleteCity(id) {
+      if (!confirm('حذف المنطقة؟ قد يؤثر على الرحلات المرتبطة.')) return;
+      await db.collection("cities").doc(id).delete();
+      await loadAllCities();
+      if (document.getElementById('panelCities').style.display !== 'none') {
+        loadCitiesTable();
+      }
+      renderCityMiniList();
+      loadBusesTable(); // تحديث عرض أسماء المناطق في الجدول
+    }
+
+    // ==================== تعريض الدوال ====================
+    window.switchTab = switchTab;
+    window.showAddBusModal = showAddBusModal;
+    window.editBus = editBus;
+    window.deleteBus = deleteBus;
+    window.closeBusModal = closeBusModal;
+    window.saveBus = saveBus;
+    window.toggleQuickAdd = toggleQuickAdd;
+    window.saveQuickCity = saveQuickCity;
+    window.showAddCityStandalone = showAddCityStandalone;
+    window.closeCityManageModal = closeCityManageModal;
+    window.saveStandaloneCity = saveStandaloneCity;
+    window.deleteCity = deleteCity;
+  </script>
+</body>
+</html>
