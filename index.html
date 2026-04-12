@@ -27,6 +27,8 @@
   
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <!-- إضافة مكتبة Authentication -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   
   <style>
@@ -305,108 +307,176 @@
       cursor: pointer;
     }
 
-    /* زر مسح الكاش (للمطور) - مخفي بشكل افتراضي */
-    .dev-clear-cache {
+    /* شاشة تحميل تسجيل الدخول المجهول */
+    .auth-loading-screen {
       position: fixed;
-      bottom: 20px;
-      left: 20px;
-      background: #ef4444;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 30px;
-      font-size: 12px;
-      font-weight: bold;
-      z-index: 999;
-      opacity: 0.7;
-      cursor: pointer;
-      display: none; /* مخفي، يمكن إظهاره عبر console */
+      inset: 0;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
     }
+    .dark .auth-loading-screen {
+      background: #0B1121;
+    }
+    .auth-spinner {
+      width: 60px;
+      height: 60px;
+      border: 5px solid rgba(30, 58, 138, 0.2);
+      border-top-color: #C6A44C;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body class="text-gray-800 pb-24">
 
-  <!-- زر تثبيت التطبيق -->
-  <button id="installBtn" hidden class="install-btn">
-    <i class="fas fa-download"></i> تثبيت التطبيق
-  </button>
-
-  <!-- زر مخفي لمسح الكاش (يظهر عند الحاجة) -->
-  <button id="devClearCacheBtn" class="dev-clear-cache" onclick="clearAllCache()">🗑️ مسح الكاش</button>
-
-  <!-- Onboarding Modal -->
-  <div id="onboardingModal" class="onboarding-overlay" style="display: none;">
-    <div class="onboarding-card">
-      <button onclick="skipOnboarding()" class="absolute top-4 left-4 text-gray-400 hover:text-gray-600 text-sm font-bold dark:text-gray-500 dark:hover:text-gray-300">تخطي</button>
-      <div id="onboardingContent"></div>
-      <div class="step-indicator" id="stepIndicator"></div>
-      <div class="flex gap-3 mt-4">
-        <button id="onboardingPrev" onclick="prevStep()" class="flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl font-bold disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300" disabled>السابق</button>
-        <button id="onboardingNext" onclick="nextStep()" class="flex-1 bg-royalDark text-white py-4 rounded-2xl font-bold">التالي</button>
-      </div>
-    </div>
+  <!-- شاشة التحميل الأولية (تختفي بعد تسجيل الدخول المجهول) -->
+  <div id="authLoadingScreen" class="auth-loading-screen">
+    <div class="auth-spinner mb-4"></div>
+    <p class="text-lg font-bold text-royalDark dark:text-white">جاري الاتصال...</p>
+    <p class="text-sm text-gray-500 mt-2">تسجيل الدخول المجهول</p>
   </div>
 
-  <!-- نافذة الدفع Modal -->
-  <div id="paymentModal" class="payment-modal" style="display: none;">
-    <div class="modal-content">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-black text-royalDark dark:text-white">تأكيد الحجز</h3>
-        <button onclick="closePaymentModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-          <i class="fas fa-times-circle text-2xl"></i>
-        </button>
-      </div>
-      
-      <!-- ملخص الرحلة -->
-      <div id="paymentTripSummary" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-2xl mb-5 border border-gray-200 dark:border-gray-600">
-        <!-- يتم ملؤه ديناميكياً -->
-      </div>
+  <!-- باقي محتوى التطبيق (يُخفى حتى تسجيل الدخول) -->
+  <div id="appContent" style="display: none;">
 
-      <!-- حقول بيانات العميل -->
-      <div class="space-y-4 mb-5">
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <label class="block text-sm font-bold text-gray-600 dark:text-gray-300 mb-2"><i class="fas fa-user ml-1"></i>الاسم الرباعي الكامل</label>
-          <input type="text" id="customerFullName" placeholder="أدخل اسمك الرباعي" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl p-3 outline-none focus:border-gold" required>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <label class="block text-sm font-bold text-gray-600 dark:text-gray-300 mb-2"><i class="fas fa-phone ml-1"></i>رقم الهاتف</label>
-          <input type="tel" id="customerPhone" placeholder="مثال: 0912345678" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl p-3 outline-none focus:border-gold" required>
-        </div>
-      </div>
-      
-      <!-- تنبيه المبلغ المطلوب -->
-      <div class="bg-gold/10 border border-gold/30 rounded-2xl p-4 mb-5 flex items-center gap-3">
-        <div class="w-10 h-10 bg-gold/20 rounded-full flex items-center justify-center text-gold text-xl">
-          <i class="fas fa-coins"></i>
-        </div>
-        <div>
-          <p class="font-bold text-royalDark dark:text-white">
-              ادفع 10,000 جنيه فقط لتأمين مقعدك</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">المبلغ المتبقي يُدفع قبل الرحلة لأستلام التزكرة فورا عبر واتساب</p>
+    <!-- زر تثبيت التطبيق -->
+    <button id="installBtn" hidden class="install-btn">
+      <i class="fas fa-download"></i> تثبيت التطبيق
+    </button>
+
+    <!-- Onboarding Modal -->
+    <div id="onboardingModal" class="onboarding-overlay" style="display: none;">
+      <div class="onboarding-card">
+        <button onclick="skipOnboarding()" class="absolute top-4 left-4 text-gray-400 hover:text-gray-600 text-sm font-bold dark:text-gray-500 dark:hover:text-gray-300">تخطي</button>
+        <div id="onboardingContent"></div>
+        <div class="step-indicator" id="stepIndicator"></div>
+        <div class="flex gap-3 mt-4">
+          <button id="onboardingPrev" onclick="prevStep()" class="flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl font-bold disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300" disabled>السابق</button>
+          <button id="onboardingNext" onclick="nextStep()" class="flex-1 bg-royalDark text-white py-4 rounded-2xl font-bold">التالي</button>
         </div>
       </div>
-      
-      <!-- خيارات الدفع -->
-      <div class="space-y-4 mb-6">
-        <h4 class="font-bold text-gray-600 dark:text-gray-300 text-sm">اختر طريقة الدفع:</h4>
+    </div>
+
+    <!-- نافذة الدفع Modal -->
+    <div id="paymentModal" class="payment-modal" style="display: none;">
+      <div class="modal-content">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-black text-royalDark dark:text-white">تأكيد الحجز</h3>
+          <button onclick="closePaymentModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+            <i class="fas fa-times-circle text-2xl"></i>
+          </button>
+        </div>
         
-        <!-- بنكك -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="payment-image">
-              <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894744/98aa1a549ab7b51e9a77a5a4dce9f31d_vbm8aw.jpg" alt="بنكك" class="w-full h-full object-contain">
-            </div>
-            <span class="font-black text-lg dark:text-white">بنكك</span>
+        <!-- ملخص الرحلة -->
+        <div id="paymentTripSummary" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-2xl mb-5 border border-gray-200 dark:border-gray-600">
+          <!-- يتم ملؤه ديناميكياً -->
+        </div>
+
+        <!-- حقول بيانات العميل -->
+        <div class="space-y-4 mb-5">
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <label class="block text-sm font-bold text-gray-600 dark:text-gray-300 mb-2"><i class="fas fa-user ml-1"></i>الاسم الرباعي الكامل</label>
+            <input type="text" id="customerFullName" placeholder="أدخل اسمك الرباعي" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl p-3 outline-none focus:border-gold" required>
           </div>
-          <div class="space-y-2 text-sm">
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <label class="block text-sm font-bold text-gray-600 dark:text-gray-300 mb-2"><i class="fas fa-phone ml-1"></i>رقم الهاتف</label>
+            <input type="tel" id="customerPhone" placeholder="مثال: 0912345678" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl p-3 outline-none focus:border-gold" required>
+          </div>
+        </div>
+        
+        <!-- تنبيه المبلغ المطلوب -->
+        <div class="bg-gold/10 border border-gold/30 rounded-2xl p-4 mb-5 flex items-center gap-3">
+          <div class="w-10 h-10 bg-gold/20 rounded-full flex items-center justify-center text-gold text-xl">
+            <i class="fas fa-coins"></i>
+          </div>
+          <div>
+            <p class="font-bold text-royalDark dark:text-white">
+                ادفع 10,000 جنيه فقط لتأمين مقعدك</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">المبلغ المتبقي يُدفع قبل الرحلة لأستلام التزكرة فورا عبر واتساب</p>
+          </div>
+        </div>
+        
+        <!-- خيارات الدفع -->
+        <div class="space-y-4 mb-6">
+          <h4 class="font-bold text-gray-600 dark:text-gray-300 text-sm">اختر طريقة الدفع:</h4>
+          
+          <!-- بنكك -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="payment-image">
+                <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894744/98aa1a549ab7b51e9a77a5a4dce9f31d_vbm8aw.jpg" alt="بنكك" class="w-full h-full object-contain">
+              </div>
+              <span class="font-black text-lg dark:text-white">بنكك</span>
+            </div>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-500 dark:text-gray-400"> اسم المستفيد:</span>
+                <span class="font-bold dark:text-white">أنس أمين خليل أمين</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-gray-500 dark:text-gray-400">رقم الحساب:</span>
+                <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('2480511', this)" data-copy="2480511">
+                  2480511
+                  <i class="far fa-copy mr-2 text-gold"></i>
+                  <span class="copy-feedback">تم النسخ!</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- فوري -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="payment-image">
+                <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894744/d8b5525367abe30d93542898503edea1_ofsau9.jpg" alt="فوري" class="w-full h-full object-contain">
+              </div>
+              <span class="font-black text-lg dark:text-white">فوري</span>
+            </div>
             <div class="flex justify-between items-center">
-              <span class="text-gray-500 dark:text-gray-400"> اسم المستفيد:</span>
-              <span class="font-bold dark:text-white">أنس أمين خليل أمين</span>
+              <span class="text-gray-500 dark:text-gray-400">رقم الهاتف:</span>
+              <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('51690879', this)" data-copy="51690879">
+                51690879
+                <i class="far fa-copy mr-2 text-gold"></i>
+                <span class="copy-feedback">تم النسخ!</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- ماي كاشي -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="payment-image">
+                <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894801/f5b1430d4f6d312e1a7d5625644bbc88_2_en7yii.jpg" alt="ماي كاشي" class="w-full h-full object-contain">
+              </div>
+              <span class="font-black text-lg dark:text-white">ماي كاشي</span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-gray-500 dark:text-gray-400">رقم الحساب:</span>
-              <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('2480511', this)" data-copy="2480511">
-                2480511
+              <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('401737159', this)" data-copy="401737159">
+                401737159
+                <i class="far fa-copy mr-2 text-gold"></i>
+                <span class="copy-feedback">تم النسخ!</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- المشرق -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="payment-image">
+                <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894744/IMG-20260411-WA0026_ngpm03.jpg" alt="المشرق" class="w-full h-full object-contain">
+              </div>
+              <span class="font-black text-lg dark:text-white">المشرق</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-500 dark:text-gray-400">رقم الحساب:</span>
+              <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('64498707', this)" data-copy="64498707">
+                64498707
                 <i class="far fa-copy mr-2 text-gold"></i>
                 <span class="copy-feedback">تم النسخ!</span>
               </span>
@@ -414,231 +484,178 @@
           </div>
         </div>
         
-        <!-- فوري -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="payment-image">
-              <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894744/d8b5525367abe30d93542898503edea1_ofsau9.jpg" alt="فوري" class="w-full h-full object-contain">
-            </div>
-            <span class="font-black text-lg dark:text-white">فوري</span>
-          </div>
-          <div class="flex justify-between items-center">
-            <span class="text-gray-500 dark:text-gray-400">رقم الهاتف:</span>
-            <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('51690879', this)" data-copy="51690879">
-              51690879
-              <i class="far fa-copy mr-2 text-gold"></i>
-              <span class="copy-feedback">تم النسخ!</span>
-            </span>
-          </div>
+        <!-- تعليمات -->
+        <div class="text-xs text-gray-500 dark:text-gray-400 mb-5 bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-xl">
+          <i class="fas fa-info-circle ml-1 text-royal"></i>
+          بعد إتمام الدفع، اضغط على "رفع الإيصال" لإرسال صورة الإيصال عبر واتساب وتأكيد حجزك.
         </div>
-
-        <!-- ماي كاشي -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="payment-image">
-              <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894801/f5b1430d4f6d312e1a7d5625644bbc88_2_en7yii.jpg" alt="ماي كاشي" class="w-full h-full object-contain">
-            </div>
-            <span class="font-black text-lg dark:text-white">ماي كاشي</span>
-          </div>
-          <div class="flex justify-between items-center">
-            <span class="text-gray-500 dark:text-gray-400">رقم الحساب:</span>
-            <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('401737159', this)" data-copy="401737159">
-              401737159
-              <i class="far fa-copy mr-2 text-gold"></i>
-              <span class="copy-feedback">تم النسخ!</span>
-            </span>
-          </div>
-        </div>
-
-        <!-- المشرق -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="payment-image">
-              <img src="https://res.cloudinary.com/dim7huhc3/image/upload/v1775894744/IMG-20260411-WA0026_ngpm03.jpg" alt="المشرق" class="w-full h-full object-contain">
-            </div>
-            <span class="font-black text-lg dark:text-white">المشرق</span>
-          </div>
-          <div class="flex justify-between items-center">
-            <span class="text-gray-500 dark:text-gray-400">رقم الحساب:</span>
-            <span class="font-mono font-bold text-lg copyable" onclick="copyToClipboard('64498707', this)" data-copy="64498707">
-              64498707
-              <i class="far fa-copy mr-2 text-gold"></i>
-              <span class="copy-feedback">تم النسخ!</span>
-            </span>
-          </div>
+        
+        <!-- أزرار الإجراء -->
+        <div class="flex gap-3">
+          <button onclick="closePaymentModal()" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-4 rounded-2xl font-bold">إلغاء</button>
+          <button onclick="proceedToUploadReceipt()" class="flex-1 bg-royalDark text-white py-4 rounded-2xl font-bold shadow-lg shadow-royalDark/20 flex items-center justify-center gap-2">
+            <i class="fab fa-whatsapp"></i>
+            رفع الإيصال
+          </button>
         </div>
       </div>
-      
-      <!-- تعليمات -->
-      <div class="text-xs text-gray-500 dark:text-gray-400 mb-5 bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-xl">
-        <i class="fas fa-info-circle ml-1 text-royal"></i>
-        بعد إتمام الدفع، اضغط على "رفع الإيصال" لإرسال صورة الإيصال عبر واتساب وتأكيد حجزك.
+    </div>
+
+    <header class="bg-royal text-white sticky top-0 z-40 shadow-xl rounded-b-[2.5rem] px-6 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
+          <i class="fas fa-ticket-alt text-gold text-2xl"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-extrabold tracking-tight">تزكرتي</h1>
+          <p class="text-[10px] text-blue-200 font-bold opacity-80 uppercase">Tazkarti Travel</p>
+        </div>
       </div>
-      
-      <!-- أزرار الإجراء -->
-      <div class="flex gap-3">
-        <button onclick="closePaymentModal()" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-4 rounded-2xl font-bold">إلغاء</button>
-        <button onclick="proceedToUploadReceipt()" class="flex-1 bg-royalDark text-white py-4 rounded-2xl font-bold shadow-lg shadow-royalDark/20 flex items-center justify-center gap-2">
-          <i class="fab fa-whatsapp"></i>
-          رفع الإيصال
+      <div class="flex items-center gap-2">
+        <button id="themeToggle" class="bg-gold/20 p-2 rounded-full border border-gold/30 text-white hover:bg-gold/30 transition-colors">
+          <i id="themeIcon" class="fas fa-moon"></i>
         </button>
+        <div class="bg-gold/20 p-2 rounded-full border border-gold/30">
+          <i class="fas fa-headset text-gold"></i>
+        </div>
       </div>
-    </div>
-  </div>
+    </header>
 
-  <header class="bg-royal text-white sticky top-0 z-40 shadow-xl rounded-b-[2.5rem] px-6 py-5 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
-        <i class="fas fa-ticket-alt text-gold text-2xl"></i>
-      </div>
-      <div>
-        <h1 class="text-2xl font-extrabold tracking-tight">تزكرتي</h1>
-        <p class="text-[10px] text-blue-200 font-bold opacity-80 uppercase">Tazkarti Travel</p>
-      </div>
-    </div>
-    <div class="flex items-center gap-2">
-      <button id="themeToggle" class="bg-gold/20 p-2 rounded-full border border-gold/30 text-white hover:bg-gold/30 transition-colors">
-        <i id="themeIcon" class="fas fa-moon"></i>
-      </button>
-      <div class="bg-gold/20 p-2 rounded-full border border-gold/30">
-        <i class="fas fa-headset text-gold"></i>
-      </div>
-    </div>
-  </header>
-
-  <!-- الرئيسية -->
-  <main id="view-home" class="view-section active px-4 pt-6">
-    <div class="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-6 mb-8">
-      <h2 class="text-lg font-bold mb-5 flex items-center gap-2 text-royalDark dark:text-white"><i class="fas fa-search-location text-gold"></i> حجز رحلة جديدة</h2>
-      <div class="space-y-4">
-        <div class="grid grid-cols-1 gap-4">
-          <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-            <span class="text-[10px] text-gray-400 font-bold block mb-1">اختر محطة المغادرة من القائمة</span>
-            <select id="search-from" class="w-full bg-transparent font-bold text-royalDark dark:text-white outline-none">
-              <option value="">جاري تحميل المناطق...</option>
-            </select>
+    <!-- الرئيسية -->
+    <main id="view-home" class="view-section active px-4 pt-6">
+      <div class="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-6 mb-8">
+        <h2 class="text-lg font-bold mb-5 flex items-center gap-2 text-royalDark dark:text-white"><i class="fas fa-search-location text-gold"></i> حجز رحلة جديدة</h2>
+        <div class="space-y-4">
+          <div class="grid grid-cols-1 gap-4">
+            <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+              <span class="text-[10px] text-gray-400 font-bold block mb-1">اختر محطة المغادرة من القائمة</span>
+              <select id="search-from" class="w-full bg-transparent font-bold text-royalDark dark:text-white outline-none">
+                <option value="">جاري تحميل المناطق...</option>
+              </select>
+            </div>
+            <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+              <span class="text-[10px] text-gray-400 font-bold block mb-1">أختر محطة الوصول من القائمة</span>
+              <select id="search-to" class="w-full bg-transparent font-bold text-royalDark dark:text-white outline-none">
+                <option value="">جاري تحميل المناطق...</option>
+              </select>
+            </div>
           </div>
-          <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-            <span class="text-[10px] text-gray-400 font-bold block mb-1">أختر محطة الوصول من القائمة</span>
-            <select id="search-to" class="w-full bg-transparent font-bold text-royalDark dark:text-white outline-none">
-              <option value="">جاري تحميل المناطق...</option>
-            </select>
+          <div class="flex gap-4">
+            <div class="flex-1 bg-gray-50 rounded-2xl p-4 border border-gray-200">
+              <span class="text-[10px] text-gray-400 font-bold block mb-1">تاريخ السفر</span>
+              <input type="date" id="search-date" class="w-full bg-transparent font-bold text-sm outline-none" value="2026-04-15">
+            </div>
+            <div class="w-1/3 bg-gray-50 rounded-2xl p-4 border border-gray-200">
+              <span class="text-[10px] text-gray-400 font-bold block mb-1"> التزاكر</span>
+              <select id="search-passengers" class="w-full bg-transparent font-bold outline-none">
+                <script>for(let i=1; i<=10; i++) document.write(`<option value="${i}">${i}</option>`)</script>
+              </select>
+            </div>
+          </div>
+          <button onclick="renderBuses()" class="w-full bg-royalDark text-white font-extrabold py-5 rounded-[1.5rem] shadow-xl hover:bg-black dark:hover:bg-gray-800 transition-all transform active:scale-95">استعراض الرحلات المتاحة</button>
+        </div>
+      </div>
+
+      <!-- شريط فلترة الباصات (يُملأ ديناميكياً) -->
+      <div class="mb-4">
+        <div class="flex items-center justify-between mb-2 px-2">
+          <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400">فلترة حسب الباص</h3>
+          <span class="text-[10px] text-gold bg-gold/10 px-3 py-1 rounded-full">اسحب أو استخدم الأسهم</span>
+        </div>
+        
+        <div class="filter-wrapper">
+          <div id="scrollRightArrow" class="scroll-arrow arrow-right" onclick="scrollFilters('right')">
+            <i class="fas fa-chevron-right"></i>
+          </div>
+          
+          <div id="filterScrollContainer" class="filter-scroll-container">
+            <div class="filter-chips" id="filterChips">
+              <button data-filter="all" class="filter-chip active">الكل</button>
+            </div>
+          </div>
+          
+          <div id="scrollLeftArrow" class="scroll-arrow arrow-left" onclick="scrollFilters('left')">
+            <i class="fas fa-chevron-left"></i>
           </div>
         </div>
+      </div>
+
+      <h3 class="text-xl font-black text-royalDark dark:text-white mb-6 px-2">الرحلات المختارة</h3>
+      <div id="buses-container" class="space-y-6 pb-10">
+        <div class="text-center py-10 text-gray-400">اختر مساراً واضغط "استعراض الرحلات"</div>
+      </div>
+    </main>
+
+    <!-- الخدمات -->
+    <main id="view-services" class="view-section px-4 pt-6">
+      <h2 class="text-2xl font-black mb-6 text-royalDark dark:text-white">خدمات تزكرتي المميزة</h2>
+      <div class="grid grid-cols-1 gap-4">
+        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-blue-100 text-royal rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-wifi"></i></div>
+          <div><h4 class="font-bold text-lg">إنترنت مجاني</h4><p class="text-sm text-gray-500 dark:text-gray-400">استمتع بخدمة الواي فاي عالية السرعة طوال مدة الرحلة.</p></div>
+        </div>
+        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-green-100 text-emerald rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-couch"></i></div>
+          <div><h4 class="font-bold text-lg">مقاعد VIP مريحة</h4><p class="text-sm text-gray-500 dark:text-gray-400">مقاعد جلدية واسعة قابلة للطي لضمان راحة تامة أثناء السفر.</p></div>
+        </div>
+        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-utensils"></i></div>
+          <div><h4 class="font-bold text-lg">وجبات ضيافة</h4><p class="text-sm text-gray-500 dark:text-gray-400">نقدم وجبات خفيفة ومشروبات باردة وساخنة مجانية لركابنا.</p></div>
+        </div>
+        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-shield-alt"></i></div>
+          <div><h4 class="font-bold text-lg">أمان ومراقبة</h4><p class="text-sm text-gray-500 dark:text-gray-400">أعلى مستوى أمان و سائقين ذوي خبرة وكفاءة عالية.</p></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- تذاكري -->
+    <main id="view-bookings" class="view-section px-4 pt-6">
+      <h2 class="text-2xl font-black mb-6 text-royalDark dark:text-white">تذاكري</h2>
+      <div id="bookings-list" class="space-y-4">
+        <div class="text-center py-20 bg-white dark:bg-gray-800 rounded-[2rem] border border-dashed border-gray-300 dark:border-gray-600">
+          <i class="fas fa-ticket-alt text-5xl text-gray-200 dark:text-gray-600 mb-4 block"></i>
+          <p class="text-gray-400 dark:text-gray-500 font-bold">لا توجد حجوزات نشطة حالياً</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- عن تزكرتي -->
+    <main id="view-about" class="view-section px-4 pt-6">
+      <div class="bg-royalDark text-white p-8 rounded-[2.5rem] mb-6">
+        <h2 class="text-3xl font-black mb-4">تزكرتي للسفريات</h2>
+        <p class="text-blue-100 leading-relaxed mb-6">نحن منصة رائدة في مجال حجز تذاكر النقل البري في السودان، نسعى لتقديم تجربة سفر آمنة، مريحة، وبأحدث الأساطيل السياحية التي تربط بين كافة ولاياتنا الحبيبة.</p>
         <div class="flex gap-4">
-          <div class="flex-1 bg-gray-50 rounded-2xl p-4 border border-gray-200">
-            <span class="text-[10px] text-gray-400 font-bold block mb-1">تاريخ السفر</span>
-            <input type="date" id="search-date" class="w-full bg-transparent font-bold text-sm outline-none" value="2026-04-15">
-          </div>
-          <div class="w-1/3 bg-gray-50 rounded-2xl p-4 border border-gray-200">
-            <span class="text-[10px] text-gray-400 font-bold block mb-1"> التزاكر</span>
-            <select id="search-passengers" class="w-full bg-transparent font-bold outline-none">
-              <script>for(let i=1; i<=10; i++) document.write(`<option value="${i}">${i}</option>`)</script>
-            </select>
-          </div>
-        </div>
-        <button onclick="renderBuses()" class="w-full bg-royalDark text-white font-extrabold py-5 rounded-[1.5rem] shadow-xl hover:bg-black dark:hover:bg-gray-800 transition-all transform active:scale-95">استعراض الرحلات المتاحة</button>
-      </div>
-    </div>
-
-    <!-- شريط فلترة الباصات (يُملأ ديناميكياً) -->
-    <div class="mb-4">
-      <div class="flex items-center justify-between mb-2 px-2">
-        <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400">فلترة حسب الباص</h3>
-        <span class="text-[10px] text-gold bg-gold/10 px-3 py-1 rounded-full">اسحب أو استخدم الأسهم</span>
-      </div>
-      
-      <div class="filter-wrapper">
-        <div id="scrollRightArrow" class="scroll-arrow arrow-right" onclick="scrollFilters('right')">
-          <i class="fas fa-chevron-right"></i>
-        </div>
-        
-        <div id="filterScrollContainer" class="filter-scroll-container">
-          <div class="filter-chips" id="filterChips">
-            <button data-filter="all" class="filter-chip active">الكل</button>
-          </div>
-        </div>
-        
-        <div id="scrollLeftArrow" class="scroll-arrow arrow-left" onclick="scrollFilters('left')">
-          <i class="fas fa-chevron-left"></i>
+          <div class="flex-1 bg-white/10 p-4 rounded-2xl text-center border border-white/10"><p class="text-gold font-bold text-xl">+18</p><p class="text-[10px] uppercase">ولاية نغطيها</p></div>
+          <div class="flex-1 bg-white/10 p-4 rounded-2xl text-center border border-white/10"><p class="text-gold font-bold text-xl">24/7</p><p class="text-[10px] uppercase">دعم فني</p></div>
         </div>
       </div>
-    </div>
+      <h4 class="font-bold mb-4 px-2 dark:text-white">تواصل معنا</h4>
+      <div class="space-y-3">
+        <a href="tel:249123456789" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+          <i class="fas fa-phone text-emerald text-xl"></i>
+          <div><p class="text-[10px] text-gray-400 font-bold">الخط الساخن</p><p class="font-bold dark:text-white">249123456789+</p></div>
+        </a>
+        <a href="#" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+          <i class="fas fa-map-marker-alt text-red-500 text-xl"></i>
+          <div><p class="text-[10px] text-gray-400 font-bold">المكتب الرئيسي</p><p class="font-bold dark:text-white">الخرطوم - الميناء البري</p></div>
+        </a>
+        <a href="https://wa.me/249123456789" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+          <i class="fab fa-whatsapp text-emerald text-xl"></i>
+          <div><p class="text-[10px] text-gray-400 font-bold">واتساب الأعمال</p><p class="font-bold dark:text-white">راسلنا الآن</p></div>
+        </a>
+      </div>
+    </main>
 
-    <h3 class="text-xl font-black text-royalDark dark:text-white mb-6 px-2">الرحلات المختارة</h3>
-    <div id="buses-container" class="space-y-6 pb-10">
-      <div class="text-center py-10 text-gray-400">اختر مساراً واضغط "استعراض الرحلات"</div>
-    </div>
-  </main>
+    <!-- شريط التنقل السفلي -->
+    <nav class="fixed bottom-6 left-6 right-6 bg-royalDark/90 backdrop-blur-xl border border-white/10 px-6 py-4 rounded-[2rem] flex justify-between items-center z-50 shadow-2xl">
+      <button onclick="switchTab('home')" id="nav-home" class="nav-btn text-gold flex flex-col items-center gap-1"><i class="fas fa-home text-lg"></i><span class="text-[9px] font-bold">الرئيسية</span></button>
+      <button onclick="switchTab('services')" id="nav-services" class="nav-btn text-gray-400 flex flex-col items-center gap-1"><i class="fas fa-star text-lg"></i><span class="text-[9px] font-bold">الخدمات</span></button>
+      <button onclick="switchTab('bookings')" id="nav-bookings" class="nav-btn text-gray-400 flex flex-col items-center gap-1"><i class="fas fa-ticket-alt text-lg"></i><span class="text-[9px] font-bold">تذاكري</span></button>
+      <button onclick="switchTab('about')" id="nav-about" class="nav-btn text-gray-400 flex flex-col items-center gap-1"><i class="fas fa-info-circle text-lg"></i><span class="text-[9px] font-bold">عن تزكرتي</span></button>
+    </nav>
 
-  <!-- الخدمات -->
-  <main id="view-services" class="view-section px-4 pt-6">
-    <h2 class="text-2xl font-black mb-6 text-royalDark dark:text-white">خدمات تزكرتي المميزة</h2>
-    <div class="grid grid-cols-1 gap-4">
-      <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-        <div class="w-16 h-16 bg-blue-100 text-royal rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-wifi"></i></div>
-        <div><h4 class="font-bold text-lg">إنترنت مجاني</h4><p class="text-sm text-gray-500 dark:text-gray-400">استمتع بخدمة الواي فاي عالية السرعة طوال مدة الرحلة.</p></div>
-      </div>
-      <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-        <div class="w-16 h-16 bg-green-100 text-emerald rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-couch"></i></div>
-        <div><h4 class="font-bold text-lg">مقاعد VIP مريحة</h4><p class="text-sm text-gray-500 dark:text-gray-400">مقاعد جلدية واسعة قابلة للطي لضمان راحة تامة أثناء السفر.</p></div>
-      </div>
-      <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-        <div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-utensils"></i></div>
-        <div><h4 class="font-bold text-lg">وجبات ضيافة</h4><p class="text-sm text-gray-500 dark:text-gray-400">نقدم وجبات خفيفة ومشروبات باردة وساخنة مجانية لركابنا.</p></div>
-      </div>
-      <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-        <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-shield-alt"></i></div>
-        <div><h4 class="font-bold text-lg">أمان ومراقبة</h4><p class="text-sm text-gray-500 dark:text-gray-400">أعلى مستوى أمان و سائقين ذوي خبرة وكفاءة عالية.</p></div>
-      </div>
-    </div>
-  </main>
-
-  <!-- تذاكري -->
-  <main id="view-bookings" class="view-section px-4 pt-6">
-    <h2 class="text-2xl font-black mb-6 text-royalDark dark:text-white">تذاكري</h2>
-    <div id="bookings-list" class="space-y-4">
-      <div class="text-center py-20 bg-white dark:bg-gray-800 rounded-[2rem] border border-dashed border-gray-300 dark:border-gray-600">
-        <i class="fas fa-ticket-alt text-5xl text-gray-200 dark:text-gray-600 mb-4 block"></i>
-        <p class="text-gray-400 dark:text-gray-500 font-bold">لا توجد حجوزات نشطة حالياً</p>
-      </div>
-    </div>
-  </main>
-
-  <!-- عن تزكرتي -->
-  <main id="view-about" class="view-section px-4 pt-6">
-    <div class="bg-royalDark text-white p-8 rounded-[2.5rem] mb-6">
-      <h2 class="text-3xl font-black mb-4">تزكرتي للسفريات</h2>
-      <p class="text-blue-100 leading-relaxed mb-6">نحن منصة رائدة في مجال حجز تذاكر النقل البري في السودان، نسعى لتقديم تجربة سفر آمنة، مريحة، وبأحدث الأساطيل السياحية التي تربط بين كافة ولاياتنا الحبيبة.</p>
-      <div class="flex gap-4">
-        <div class="flex-1 bg-white/10 p-4 rounded-2xl text-center border border-white/10"><p class="text-gold font-bold text-xl">+18</p><p class="text-[10px] uppercase">ولاية نغطيها</p></div>
-        <div class="flex-1 bg-white/10 p-4 rounded-2xl text-center border border-white/10"><p class="text-gold font-bold text-xl">24/7</p><p class="text-[10px] uppercase">دعم فني</p></div>
-      </div>
-    </div>
-    <h4 class="font-bold mb-4 px-2 dark:text-white">تواصل معنا</h4>
-    <div class="space-y-3">
-      <a href="tel:249123456789" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-        <i class="fas fa-phone text-emerald text-xl"></i>
-        <div><p class="text-[10px] text-gray-400 font-bold">الخط الساخن</p><p class="font-bold dark:text-white">249123456789+</p></div>
-      </a>
-      <a href="#" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-        <i class="fas fa-map-marker-alt text-red-500 text-xl"></i>
-        <div><p class="text-[10px] text-gray-400 font-bold">المكتب الرئيسي</p><p class="font-bold dark:text-white">الخرطوم - الميناء البري</p></div>
-      </a>
-      <a href="https://wa.me/249123456789" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-        <i class="fab fa-whatsapp text-emerald text-xl"></i>
-        <div><p class="text-[10px] text-gray-400 font-bold">واتساب الأعمال</p><p class="font-bold dark:text-white">راسلنا الآن</p></div>
-      </a>
-    </div>
-  </main>
-
-  <!-- شريط التنقل السفلي -->
-  <nav class="fixed bottom-6 left-6 right-6 bg-royalDark/90 backdrop-blur-xl border border-white/10 px-6 py-4 rounded-[2rem] flex justify-between items-center z-50 shadow-2xl">
-    <button onclick="switchTab('home')" id="nav-home" class="nav-btn text-gold flex flex-col items-center gap-1"><i class="fas fa-home text-lg"></i><span class="text-[9px] font-bold">الرئيسية</span></button>
-    <button onclick="switchTab('services')" id="nav-services" class="nav-btn text-gray-400 flex flex-col items-center gap-1"><i class="fas fa-star text-lg"></i><span class="text-[9px] font-bold">الخدمات</span></button>
-    <button onclick="switchTab('bookings')" id="nav-bookings" class="nav-btn text-gray-400 flex flex-col items-center gap-1"><i class="fas fa-ticket-alt text-lg"></i><span class="text-[9px] font-bold">تذاكري</span></button>
-    <button onclick="switchTab('about')" id="nav-about" class="nav-btn text-gray-400 flex flex-col items-center gap-1"><i class="fas fa-info-circle text-lg"></i><span class="text-[9px] font-bold">عن تزكرتي</span></button>
-  </nav>
+  </div> <!-- نهاية appContent -->
 
   <script>
   // ==================== تكوين Firebase ====================
@@ -652,626 +669,676 @@
     measurementId: "G-Z0XJ4TPPBT"
   };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth(); // ✅ تهيئة خدمة المصادقة
 
-    // ==================== ثوابت التطبيق ====================
-    const WHATSAPP_NUMBER = '249924299798'; // رقم الواتساب الثابت
+  // ==================== تسجيل الدخول المجهول ====================
+  async function signInAnonymouslyAndInit() {
+    const loadingScreen = document.getElementById('authLoadingScreen');
+    const appContent = document.getElementById('appContent');
     
-    // ✅ تغيير مدة الكاش إلى 0 (تعطيل التخزين المؤقت) لحل مشكلة البيانات القديمة
-    const CACHE_TTL = 0; // 0 يعني عدم تخزين البيانات مؤقتاً (يمكن تغييره إلى 60000 مثلاً لدقيقة واحدة)
-    
-    let bookings = [];
-    let stateList = [];
-    let currentFilter = 'all';
-    let busNamesList = [];
-    
-    // بيانات الرحلة الحالية المختارة للدفع
-    let currentBookingBus = null;
-    let currentBookingPassengers = 1;
-    let currentBookingDate = '';
+    try {
+      // إذا كان هناك مستخدم مسجل بالفعل (حتى لو مجهول) نستخدمه
+      let user = auth.currentUser;
+      
+      if (!user) {
+        // محاولة تسجيل الدخول كمجهول
+        const result = await auth.signInAnonymously();
+        user = result.user;
+        console.log('✅ تم تسجيل الدخول المجهول بنجاح. معرف المستخدم:', user.uid);
+      } else {
+        console.log('ℹ️ المستخدم مسجل بالفعل:', user.uid);
+      }
+      
+      // إخفاء شاشة التحميل وإظهار المحتوى
+      loadingScreen.style.display = 'none';
+      appContent.style.display = 'block';
+      
+      // بدء تهيئة التطبيق بعد تسجيل الدخول
+      await initApp();
+      
+    } catch (error) {
+      console.error('❌ فشل تسجيل الدخول المجهول:', error);
+      loadingScreen.innerHTML = `
+        <div class="text-center p-6">
+          <i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i>
+          <p class="font-bold text-xl mb-2">تعذر الاتصال</p>
+          <p class="text-gray-500">تأكد من اتصالك بالإنترنت وحاول مرة أخرى.</p>
+          <button onclick="location.reload()" class="mt-6 bg-royal text-white px-6 py-3 rounded-xl font-bold">إعادة المحاولة</button>
+        </div>
+      `;
+    }
+  }
 
-    // ==================== دوال الكاش (مُحسَّنة) ====================
-    function getCachedData(key) {
-      if (CACHE_TTL === 0) return null; // تعطيل الكاش بالكامل
-      try {
-        const cached = localStorage.getItem(key);
-        if (!cached) return null;
-        const data = JSON.parse(cached);
-        if (data.expiry && Date.now() > data.expiry) {
-          localStorage.removeItem(key);
-          return null;
-        }
-        return data.value;
-      } catch (e) {
+  // ==================== دوال تهيئة التطبيق ====================
+  async function initApp() {
+    initTheme();
+    await loadStates();
+    await loadBusFilters();
+    startOnboardingIfNeeded();
+    window.addEventListener('resize', updateArrowsVisibility);
+    
+    // مراقبة تغيرات حالة المصادقة (اختياري)
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        console.log('🟢 المستخدم نشط:', user.uid);
+      } else {
+        console.log('🔴 تم تسجيل الخروج');
+        // يمكن إعادة توجيه أو إظهار رسالة
+      }
+    });
+  }
+
+  // ==================== ثوابت التطبيق ====================
+  const WHATSAPP_NUMBER = '249924299798'; // رقم الواتساب الثابت
+  
+  // ✅ تغيير مدة الكاش إلى 0 (تعطيل التخزين المؤقت) لحل مشكلة البيانات القديمة
+  const CACHE_TTL = 0; // 0 يعني عدم تخزين البيانات مؤقتاً (يمكن تغييره إلى 60000 مثلاً لدقيقة واحدة)
+  
+  let bookings = [];
+  let stateList = [];
+  let currentFilter = 'all';
+  let busNamesList = [];
+  
+  // بيانات الرحلة الحالية المختارة للدفع
+  let currentBookingBus = null;
+  let currentBookingPassengers = 1;
+  let currentBookingDate = '';
+
+  // ==================== دوال الكاش (مُحسَّنة) ====================
+  function getCachedData(key) {
+    if (CACHE_TTL === 0) return null; // تعطيل الكاش بالكامل
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+      const data = JSON.parse(cached);
+      if (data.expiry && Date.now() > data.expiry) {
+        localStorage.removeItem(key);
         return null;
       }
+      return data.value;
+    } catch (e) {
+      return null;
     }
+  }
 
-    function setCachedData(key, value) {
-      if (CACHE_TTL === 0) return; // لا تخزن شيئاً
-      try {
-        const data = {
-          value: value,
-          expiry: Date.now() + CACHE_TTL
-        };
-        localStorage.setItem(key, JSON.stringify(data));
-      } catch (e) {
-        console.warn("فشل تخزين البيانات مؤقتاً:", e);
+  function setCachedData(key, value) {
+    if (CACHE_TTL === 0) return; // لا تخزن شيئاً
+    try {
+      const data = {
+        value: value,
+        expiry: Date.now() + CACHE_TTL
+      };
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.warn("فشل تخزين البيانات مؤقتاً:", e);
+    }
+  }
+
+  // ✅ دالة مسح جميع الكاش يدوياً (للمطور)
+  function clearAllCache() {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('tazkarti_')) {
+        keysToRemove.push(key);
       }
     }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log('✅ تم مسح الكاش:', keysToRemove);
+    alert('تم مسح الكاش بنجاح. سيتم تحميل البيانات الجديدة من قاعدة البيانات.');
+    // إعادة تحميل البيانات
+    loadStates();
+    loadBusFilters();
+    if (document.getElementById('search-from').value) renderBuses();
+  }
 
-    // ✅ دالة مسح جميع الكاش يدوياً (للمطور)
-    function clearAllCache() {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('tazkarti_')) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      console.log('✅ تم مسح الكاش:', keysToRemove);
-      alert('تم مسح الكاش بنجاح. سيتم تحميل البيانات الجديدة من قاعدة البيانات.');
-      // إعادة تحميل البيانات
-      loadStates();
-      loadBusFilters();
-      if (document.getElementById('search-from').value) renderBuses();
-    }
+  // إظهار زر مسح الكاش للمطور (يمكن استدعاؤه من console أيضاً)
+  window.clearAllCache = clearAllCache;
 
-    // إظهار زر مسح الكاش للمطور (يمكن استدعاؤه من console أيضاً)
-    // يمكنك إظهاره عبر console: document.getElementById('devClearCacheBtn').style.display='block'
-    window.clearAllCache = clearAllCache;
+  // ==================== PWA Installation ====================
+  let deferredPrompt;
+  const installBtn = document.getElementById('installBtn');
+  
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.hidden = false;
+  });
 
-    // ==================== PWA Installation ====================
-    let deferredPrompt;
-    const installBtn = document.getElementById('installBtn');
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    installBtn.hidden = true;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to install prompt: ${outcome}`);
+    deferredPrompt = null;
+  });
+
+  // تسجيل Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('SW registered:', reg.scope))
+        .catch(err => console.log('SW registration failed:', err));
+    });
+  }
+
+  // ==================== الوضع الداكن/الفاتح ====================
+  function initTheme() {
+    const html = document.documentElement;
+    const themeIcon = document.getElementById('themeIcon');
+    const themeColorMeta = document.getElementById('theme-color');
+    const savedTheme = localStorage.getItem('theme') || 'light';
     
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      installBtn.hidden = false;
-    });
-
-    installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-      installBtn.hidden = true;
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response to install prompt: ${outcome}`);
-      deferredPrompt = null;
-    });
-
-    // تسجيل Service Worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('SW registered:', reg.scope))
-          .catch(err => console.log('SW registration failed:', err));
-      });
+    if (savedTheme === 'dark') {
+      html.classList.add('dark');
+      themeIcon.classList.remove('fa-moon');
+      themeIcon.classList.add('fa-sun');
+      themeColorMeta.setAttribute('content', '#0F172A');
+    } else {
+      html.classList.remove('dark');
+      themeIcon.classList.remove('fa-sun');
+      themeIcon.classList.add('fa-moon');
+      themeColorMeta.setAttribute('content', '#1E3A8A');
     }
-
-    // ==================== الوضع الداكن/الفاتح ====================
-    function initTheme() {
-      const html = document.documentElement;
-      const themeIcon = document.getElementById('themeIcon');
-      const themeColorMeta = document.getElementById('theme-color');
-      const savedTheme = localStorage.getItem('theme') || 'light';
-      
-      if (savedTheme === 'dark') {
-        html.classList.add('dark');
-        themeIcon.classList.remove('fa-moon');
-        themeIcon.classList.add('fa-sun');
-        themeColorMeta.setAttribute('content', '#0F172A');
-      } else {
+    
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      if (html.classList.contains('dark')) {
         html.classList.remove('dark');
         themeIcon.classList.remove('fa-sun');
         themeIcon.classList.add('fa-moon');
+        localStorage.setItem('theme', 'light');
         themeColorMeta.setAttribute('content', '#1E3A8A');
+      } else {
+        html.classList.add('dark');
+        themeIcon.classList.remove('fa-moon');
+        themeIcon.classList.add('fa-sun');
+        localStorage.setItem('theme', 'dark');
+        themeColorMeta.setAttribute('content', '#0F172A');
       }
-      
-      document.getElementById('themeToggle').addEventListener('click', () => {
-        if (html.classList.contains('dark')) {
-          html.classList.remove('dark');
-          themeIcon.classList.remove('fa-sun');
-          themeIcon.classList.add('fa-moon');
-          localStorage.setItem('theme', 'light');
-          themeColorMeta.setAttribute('content', '#1E3A8A');
-        } else {
-          html.classList.add('dark');
-          themeIcon.classList.remove('fa-moon');
-          themeIcon.classList.add('fa-sun');
-          localStorage.setItem('theme', 'dark');
-          themeColorMeta.setAttribute('content', '#0F172A');
-        }
-      });
+    });
+  }
+  
+  // ==================== Onboarding Logic ====================
+  let currentStep = 0;
+  const steps = [
+    { icon: 'fa-route', title: 'أهلاً بك في تزكرتي', desc: 'دليلك للسفر المريح والآمن داخل السودان. دعنا نرشدك خلال خطوات بسيطة.', color: 'text-royal' },
+    { icon: 'fa-map-location-dot', title: 'اختر مسار رحلتك', desc: 'حدد محطة المغادرة والوصول من القوائم المنسدلة. نغطي جميع الولايات.', color: 'text-gold' },
+    { icon: 'fa-calendar-check', title: 'حدد التاريخ والركاب', desc: 'اختر تاريخ السفر وعدد المسافرين، ثم اضغط "استعراض الرحلات".', color: 'text-emerald' },
+    { icon: 'fa-ticket', title: 'احجز مقعدك', desc: 'تصفح الرحلات المتاحة، اختر المناسبة لك واضغط "إحجز مقعدك".', color: 'text-royalDark' },
+    { icon: 'fa-whatsapp', title: 'تواصل واستلم تذكرتك', desc: 'بعد تأكيد الحجز، تواصل معنا عبر واتساب لإتمام الدفع واستلام التذكرة فوراً.', color: 'text-green-600' },
+    { icon: 'fa-mobile-screen', title: 'ثبّت التطبيق للوصول السريع', desc: 'استخدم متصفح Chrome، اضغط على ⋮ ثم "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية".', isInstallStep: true, color: 'text-royal' }
+  ];
+
+  function renderOnboardingStep(stepIndex) {
+    const step = steps[stepIndex];
+    const container = document.getElementById('onboardingContent');
+    const indicator = document.getElementById('stepIndicator');
+    const prevBtn = document.getElementById('onboardingPrev');
+    const nextBtn = document.getElementById('onboardingNext');
+    
+    indicator.innerHTML = steps.map((_, i) => `<span class="step-dot ${i === stepIndex ? 'active' : ''}"></span>`).join('');
+    const iconHtml = `<div class="onboarding-icon ${step.color}"><i class="fas ${step.icon}"></i></div>`;
+    
+    container.innerHTML = `
+      ${iconHtml}
+      <h3 class="text-2xl font-black mb-3 ${step.color}">${step.title}</h3>
+      <p class="text-gray-600 dark:text-gray-300 leading-relaxed">${step.desc}</p>
+      ${step.isInstallStep ? `<div class="mt-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl text-sm border border-blue-100 dark:border-blue-800"><i class="fab fa-chrome text-blue-500 ml-1"></i><span class="font-bold">نصيحة:</span> إذا لم يظهر خيار التثبيت، انتظر قليلاً أو امسح بيانات المتصفح.</div>` : ''}
+    `;
+    
+    prevBtn.disabled = (stepIndex === 0);
+    if (stepIndex === steps.length - 1) {
+      nextBtn.textContent = 'ابدأ الاستخدام';
+      nextBtn.classList.add('bg-gold', 'text-royalDark');
+    } else {
+      nextBtn.textContent = 'التالي';
+      nextBtn.classList.remove('bg-gold', 'text-royalDark');
+      nextBtn.classList.add('bg-royalDark', 'text-white');
+    }
+  }
+
+  function nextStep() { if (currentStep < steps.length - 1) { currentStep++; renderOnboardingStep(currentStep); } else { finishOnboarding(); } }
+  function prevStep() { if (currentStep > 0) { currentStep--; renderOnboardingStep(currentStep); } }
+  function skipOnboarding() { finishOnboarding(); }
+  function finishOnboarding() { document.getElementById('onboardingModal').style.display = 'none'; localStorage.setItem('tazkarti_onboarding_seen', 'true'); }
+  function startOnboardingIfNeeded() { if (!localStorage.getItem('tazkarti_onboarding_seen')) { document.getElementById('onboardingModal').style.display = 'flex'; renderOnboardingStep(0); } }
+
+  function extractCity(fullName) { if (!fullName) return ''; const match = fullName.match(/\(([^)]+)\)/); return match ? match[1] : fullName; }
+
+  // ==================== تحميل الولايات (مع كاش معطل) ====================
+  async function loadStates() {
+    const fromSelect = document.getElementById('search-from');
+    const toSelect = document.getElementById('search-to');
+    
+    // مع CACHE_TTL=0 لن يتم استخدام الكاش
+    const cachedStates = getCachedData('tazkarti_states');
+    if (cachedStates && Array.isArray(cachedStates) && cachedStates.length > 0) {
+      stateList = cachedStates;
+      populateStateSelects(stateList);
+      return;
     }
     
-    // ==================== Onboarding Logic ====================
-    let currentStep = 0;
-    const steps = [
-      { icon: 'fa-route', title: 'أهلاً بك في تزكرتي', desc: 'دليلك للسفر المريح والآمن داخل السودان. دعنا نرشدك خلال خطوات بسيطة.', color: 'text-royal' },
-      { icon: 'fa-map-location-dot', title: 'اختر مسار رحلتك', desc: 'حدد محطة المغادرة والوصول من القوائم المنسدلة. نغطي جميع الولايات.', color: 'text-gold' },
-      { icon: 'fa-calendar-check', title: 'حدد التاريخ والركاب', desc: 'اختر تاريخ السفر وعدد المسافرين، ثم اضغط "استعراض الرحلات".', color: 'text-emerald' },
-      { icon: 'fa-ticket', title: 'احجز مقعدك', desc: 'تصفح الرحلات المتاحة، اختر المناسبة لك واضغط "إحجز مقعدك".', color: 'text-royalDark' },
-      { icon: 'fa-whatsapp', title: 'تواصل واستلم تذكرتك', desc: 'بعد تأكيد الحجز، تواصل معنا عبر واتساب لإتمام الدفع واستلام التذكرة فوراً.', color: 'text-green-600' },
-      { icon: 'fa-mobile-screen', title: 'ثبّت التطبيق للوصول السريع', desc: 'استخدم متصفح Chrome، اضغط على ⋮ ثم "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية".', isInstallStep: true, color: 'text-royal' }
-    ];
-
-    function renderOnboardingStep(stepIndex) {
-      const step = steps[stepIndex];
-      const container = document.getElementById('onboardingContent');
-      const indicator = document.getElementById('stepIndicator');
-      const prevBtn = document.getElementById('onboardingPrev');
-      const nextBtn = document.getElementById('onboardingNext');
-      
-      indicator.innerHTML = steps.map((_, i) => `<span class="step-dot ${i === stepIndex ? 'active' : ''}"></span>`).join('');
-      const iconHtml = `<div class="onboarding-icon ${step.color}"><i class="fas ${step.icon}"></i></div>`;
-      
-      container.innerHTML = `
-        ${iconHtml}
-        <h3 class="text-2xl font-black mb-3 ${step.color}">${step.title}</h3>
-        <p class="text-gray-600 dark:text-gray-300 leading-relaxed">${step.desc}</p>
-        ${step.isInstallStep ? `<div class="mt-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl text-sm border border-blue-100 dark:border-blue-800"><i class="fab fa-chrome text-blue-500 ml-1"></i><span class="font-bold">نصيحة:</span> إذا لم يظهر خيار التثبيت، انتظر قليلاً أو امسح بيانات المتصفح.</div>` : ''}
-      `;
-      
-      prevBtn.disabled = (stepIndex === 0);
-      if (stepIndex === steps.length - 1) {
-        nextBtn.textContent = 'ابدأ الاستخدام';
-        nextBtn.classList.add('bg-gold', 'text-royalDark');
-      } else {
-        nextBtn.textContent = 'التالي';
-        nextBtn.classList.remove('bg-gold', 'text-royalDark');
-        nextBtn.classList.add('bg-royalDark', 'text-white');
-      }
-    }
-
-    function nextStep() { if (currentStep < steps.length - 1) { currentStep++; renderOnboardingStep(currentStep); } else { finishOnboarding(); } }
-    function prevStep() { if (currentStep > 0) { currentStep--; renderOnboardingStep(currentStep); } }
-    function skipOnboarding() { finishOnboarding(); }
-    function finishOnboarding() { document.getElementById('onboardingModal').style.display = 'none'; localStorage.setItem('tazkarti_onboarding_seen', 'true'); }
-    function startOnboardingIfNeeded() { if (!localStorage.getItem('tazkarti_onboarding_seen')) { document.getElementById('onboardingModal').style.display = 'flex'; renderOnboardingStep(0); } }
-
-    function extractCity(fullName) { if (!fullName) return ''; const match = fullName.match(/\(([^)]+)\)/); return match ? match[1] : fullName; }
-
-    // ==================== تحميل الولايات (مع كاش معطل) ====================
-    async function loadStates() {
-      const fromSelect = document.getElementById('search-from');
-      const toSelect = document.getElementById('search-to');
-      
-      // مع CACHE_TTL=0 لن يتم استخدام الكاش
-      const cachedStates = getCachedData('tazkarti_states');
-      if (cachedStates && Array.isArray(cachedStates) && cachedStates.length > 0) {
-        stateList = cachedStates;
-        populateStateSelects(stateList);
+    try {
+      const snapshot = await db.collection("buses").get();
+      const fromStates = new Set(); const toStates = new Set();
+      snapshot.forEach(doc => { const data = doc.data(); if (data.from) fromStates.add(data.from); if (data.to) toStates.add(data.to); });
+      const allStates = [...new Set([...fromStates, ...toStates])].sort();
+      if (allStates.length === 0) {
+        fromSelect.innerHTML = '<option value="">لا توجد مناطق مضافة</option>';
+        toSelect.innerHTML = '<option value="">لا توجد مناطق مضافة</option>';
         return;
       }
-      
-      try {
-        const snapshot = await db.collection("buses").get();
-        const fromStates = new Set(); const toStates = new Set();
-        snapshot.forEach(doc => { const data = doc.data(); if (data.from) fromStates.add(data.from); if (data.to) toStates.add(data.to); });
-        const allStates = [...new Set([...fromStates, ...toStates])].sort();
-        if (allStates.length === 0) {
-          fromSelect.innerHTML = '<option value="">لا توجد مناطق مضافة</option>';
-          toSelect.innerHTML = '<option value="">لا توجد مناطق مضافة</option>';
-          return;
-        }
-        stateList = allStates;
-        setCachedData('tazkarti_states', stateList);
-        populateStateSelects(stateList);
-      } catch (error) {
-        console.error("خطأ في تحميل المناطق:", error);
-        fromSelect.innerHTML = '<option value="">خطأ في التحميل</option>';
-        toSelect.innerHTML = '<option value="">خطأ في التحميل</option>';
-      }
+      stateList = allStates;
+      setCachedData('tazkarti_states', stateList);
+      populateStateSelects(stateList);
+    } catch (error) {
+      console.error("خطأ في تحميل المناطق:", error);
+      fromSelect.innerHTML = '<option value="">خطأ في التحميل</option>';
+      toSelect.innerHTML = '<option value="">خطأ في التحميل</option>';
     }
-    
-    function populateStateSelects(states) {
-      const fromSelect = document.getElementById('search-from');
-      const toSelect = document.getElementById('search-to');
-      const renderOptions = (selectedValue = null) => states.map(state => {
-        const cityName = extractCity(state);
-        const selected = (selectedValue === state) ? 'selected' : '';
-        return `<option value="${state}" ${selected}>${cityName}</option>`;
-      }).join('');
-      fromSelect.innerHTML = renderOptions(states[0]);
-      toSelect.innerHTML = renderOptions(states[0] === states[states.length-1] ? states[0] : states[1] || states[0]);
-      if (states.length > 1) toSelect.value = states[1];
-    }
+  }
+  
+  function populateStateSelects(states) {
+    const fromSelect = document.getElementById('search-from');
+    const toSelect = document.getElementById('search-to');
+    const renderOptions = (selectedValue = null) => states.map(state => {
+      const cityName = extractCity(state);
+      const selected = (selectedValue === state) ? 'selected' : '';
+      return `<option value="${state}" ${selected}>${cityName}</option>`;
+    }).join('');
+    fromSelect.innerHTML = renderOptions(states[0]);
+    toSelect.innerHTML = renderOptions(states[0] === states[states.length-1] ? states[0] : states[1] || states[0]);
+    if (states.length > 1) toSelect.value = states[1];
+  }
 
-    // ==================== تحميل أسماء الباصات للفلترة (مع كاش معطل) ====================
-    async function loadBusFilters() {
-      const cachedFilters = getCachedData('tazkarti_bus_filters');
-      if (cachedFilters && Array.isArray(cachedFilters)) {
-        busNamesList = cachedFilters;
-        renderFilterChips(busNamesList);
-        return;
-      }
-      
-      try {
-        const snapshot = await db.collection("buses").get();
-        const busNames = new Set();
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.name) busNames.add(data.name);
-        });
-        
-        busNamesList = Array.from(busNames).sort();
-        setCachedData('tazkarti_bus_filters', busNamesList);
-        renderFilterChips(busNamesList);
-      } catch (error) {
-        console.error("خطأ في تحميل أسماء الباصات:", error);
-        busNamesList = ["أبو عامر", "العزيزية", "شريان الشمال", "أبو هشام"];
-        renderFilterChips(busNamesList);
-      }
+  // ==================== تحميل أسماء الباصات للفلترة (مع كاش معطل) ====================
+  async function loadBusFilters() {
+    const cachedFilters = getCachedData('tazkarti_bus_filters');
+    if (cachedFilters && Array.isArray(cachedFilters)) {
+      busNamesList = cachedFilters;
+      renderFilterChips(busNamesList);
+      return;
     }
     
-    function renderFilterChips(names) {
-      const filterChipsContainer = document.getElementById('filterChips');
-      let chipsHtml = `<button data-filter="all" class="filter-chip active">الكل</button>`;
-      names.forEach(name => {
-        chipsHtml += `<button data-filter="${name}" class="filter-chip">${name}</button>`;
-      });
-      filterChipsContainer.innerHTML = chipsHtml;
-      attachFilterEvents();
-      setTimeout(updateArrowsVisibility, 100);
-    }
-    
-    function attachFilterEvents() {
-      const chips = document.querySelectorAll('.filter-chip');
-      const container = document.getElementById('filterScrollContainer');
-      
-      chips.forEach(chip => {
-        chip.removeEventListener('click', handleFilterClick);
-        chip.addEventListener('click', handleFilterClick);
+    try {
+      const snapshot = await db.collection("buses").get();
+      const busNames = new Set();
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.name) busNames.add(data.name);
       });
       
-      if (container) {
-        container.removeEventListener('scroll', updateArrowsVisibility);
-        container.addEventListener('scroll', updateArrowsVisibility);
-      }
+      busNamesList = Array.from(busNames).sort();
+      setCachedData('tazkarti_bus_filters', busNamesList);
+      renderFilterChips(busNamesList);
+    } catch (error) {
+      console.error("خطأ في تحميل أسماء الباصات:", error);
+      busNamesList = ["أبو عامر", "العزيزية", "شريان الشمال", "أبو هشام"];
+      renderFilterChips(busNamesList);
+    }
+  }
+  
+  function renderFilterChips(names) {
+    const filterChipsContainer = document.getElementById('filterChips');
+    let chipsHtml = `<button data-filter="all" class="filter-chip active">الكل</button>`;
+    names.forEach(name => {
+      chipsHtml += `<button data-filter="${name}" class="filter-chip">${name}</button>`;
+    });
+    filterChipsContainer.innerHTML = chipsHtml;
+    attachFilterEvents();
+    setTimeout(updateArrowsVisibility, 100);
+  }
+  
+  function attachFilterEvents() {
+    const chips = document.querySelectorAll('.filter-chip');
+    const container = document.getElementById('filterScrollContainer');
+    
+    chips.forEach(chip => {
+      chip.removeEventListener('click', handleFilterClick);
+      chip.addEventListener('click', handleFilterClick);
+    });
+    
+    if (container) {
+      container.removeEventListener('scroll', updateArrowsVisibility);
+      container.addEventListener('scroll', updateArrowsVisibility);
+    }
+  }
+  
+  function handleFilterClick(e) {
+    const filterValue = e.currentTarget.getAttribute('data-filter');
+    setActiveFilter(filterValue);
+    const from = document.getElementById('search-from').value;
+    const to = document.getElementById('search-to').value;
+    if (from && to) renderBuses();
+  }
+  
+  function setActiveFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.classList.toggle('active', chip.getAttribute('data-filter') === filter);
+    });
+  }
+  
+  function scrollFilters(direction) {
+    const container = document.getElementById('filterScrollContainer');
+    const scrollAmount = 250;
+    if (direction === 'left') {
+      container.scrollLeft += scrollAmount;
+    } else {
+      container.scrollLeft -= scrollAmount;
+    }
+  }
+  
+  function updateArrowsVisibility() {
+    const container = document.getElementById('filterScrollContainer');
+    const leftArrow = document.getElementById('scrollLeftArrow');
+    const rightArrow = document.getElementById('scrollRightArrow');
+    
+    if (!container || !leftArrow || !rightArrow) return;
+    
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    const scrollLeft = container.scrollLeft;
+    
+    if (scrollLeft <= 5) {
+      rightArrow.classList.add('disabled');
+    } else {
+      rightArrow.classList.remove('disabled');
     }
     
-    function handleFilterClick(e) {
-      const filterValue = e.currentTarget.getAttribute('data-filter');
-      setActiveFilter(filterValue);
-      const from = document.getElementById('search-from').value;
-      const to = document.getElementById('search-to').value;
-      if (from && to) renderBuses();
+    if (scrollLeft >= maxScroll - 5) {
+      leftArrow.classList.add('disabled');
+    } else {
+      leftArrow.classList.remove('disabled');
     }
-    
-    function setActiveFilter(filter) {
-      currentFilter = filter;
-      document.querySelectorAll('.filter-chip').forEach(chip => {
-        chip.classList.toggle('active', chip.getAttribute('data-filter') === filter);
-      });
-    }
-    
-    function scrollFilters(direction) {
-      const container = document.getElementById('filterScrollContainer');
-      const scrollAmount = 250;
-      if (direction === 'left') {
-        container.scrollLeft += scrollAmount;
-      } else {
-        container.scrollLeft -= scrollAmount;
-      }
-    }
-    
-    function updateArrowsVisibility() {
-      const container = document.getElementById('filterScrollContainer');
-      const leftArrow = document.getElementById('scrollLeftArrow');
-      const rightArrow = document.getElementById('scrollRightArrow');
-      
-      if (!container || !leftArrow || !rightArrow) return;
-      
-      const maxScroll = container.scrollWidth - container.clientWidth;
-      const scrollLeft = container.scrollLeft;
-      
-      if (scrollLeft <= 5) {
-        rightArrow.classList.add('disabled');
-      } else {
-        rightArrow.classList.remove('disabled');
-      }
-      
-      if (scrollLeft >= maxScroll - 5) {
-        leftArrow.classList.add('disabled');
-      } else {
-        leftArrow.classList.remove('disabled');
-      }
-    }
+  }
 
-    // ==================== جلب الرحلات (مع كاش معطل) ====================
-    async function renderBuses() {
-      const container = document.getElementById('buses-container');
-      const from = document.getElementById('search-from').value;
-      const to = document.getElementById('search-to').value;
-      if (!from || !to) { 
-        container.innerHTML = '<div class="text-center py-10 text-gray-400">الرجاء اختيار محطتي المغادرة والوصول</div>'; 
-        return; 
-      }
-      
-      const cacheKey = `tazkarti_buses_${from}_${to}`;
-      
-      const cachedBuses = getCachedData(cacheKey);
-      if (cachedBuses && Array.isArray(cachedBuses)) {
-        displayBuses(cachedBuses, from, to);
-        return;
-      }
-      
-      container.innerHTML = '<div class="text-center py-10"><i class="fas fa-spinner fa-pulse text-2xl text-gold"></i><p class="mt-2">جاري تحميل الرحلات...</p></div>';
-      
-      try {
-        const snapshot = await db.collection("buses").where("from", "==", from).where("to", "==", to).get();
-        let buses = []; 
-        snapshot.forEach(doc => buses.push({ id: doc.id, ...doc.data() }));
-        
-        setCachedData(cacheKey, buses);
-        
-        displayBuses(buses, from, to);
-      } catch (error) { 
-        console.error("خطأ في جلب الرحلات:", error); 
-        container.innerHTML = '<div class="text-center py-10 text-red-500">حدث خطأ أثناء تحميل الرحلات. تأكد من اتصالك بالإنترنت.</div>'; 
-      }
+  // ==================== جلب الرحلات (مع كاش معطل) ====================
+  async function renderBuses() {
+    const container = document.getElementById('buses-container');
+    const from = document.getElementById('search-from').value;
+    const to = document.getElementById('search-to').value;
+    if (!from || !to) { 
+      container.innerHTML = '<div class="text-center py-10 text-gray-400">الرجاء اختيار محطتي المغادرة والوصول</div>'; 
+      return; 
     }
     
-    function displayBuses(buses, from, to) {
-      const container = document.getElementById('buses-container');
-      let filteredBuses = buses;
-      if (currentFilter !== 'all') {
-        filteredBuses = buses.filter(bus => bus.name && bus.name === currentFilter);
-      }
+    const cacheKey = `tazkarti_buses_${from}_${to}`;
+    
+    const cachedBuses = getCachedData(cacheKey);
+    if (cachedBuses && Array.isArray(cachedBuses)) {
+      displayBuses(cachedBuses, from, to);
+      return;
+    }
+    
+    container.innerHTML = '<div class="text-center py-10"><i class="fas fa-spinner fa-pulse text-2xl text-gold"></i><p class="mt-2">جاري تحميل الرحلات...</p></div>';
+    
+    try {
+      const snapshot = await db.collection("buses").where("from", "==", from).where("to", "==", to).get();
+      let buses = []; 
+      snapshot.forEach(doc => buses.push({ id: doc.id, ...doc.data() }));
       
-      if (filteredBuses.length === 0) {
-        const filterText = currentFilter === 'all' ? '' : ` (${currentFilter})`;
-        container.innerHTML = `<div class="text-center py-10 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"><i class="fas fa-route text-5xl text-gray-300 dark:text-gray-600 mb-4"></i><p class="font-bold text-gray-500 dark:text-gray-400">لا توجد رحلات متاحة من ${extractCity(from)} إلى ${extractCity(to)}${filterText}</p><p class="text-sm text-gray-400 mt-2">جرب البحث عن مسار آخر أو غير الفلتر</p></div>`;
-        return;
-      }
+      setCachedData(cacheKey, buses);
       
-      container.innerHTML = filteredBuses.map(bus => `
-        <div class="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-md border border-gray-100 dark:border-gray-700 overflow-hidden">
-          <div class="relative h-48">
-            <img src="${bus.img || 'https://images.pexels.com/photos/2790386/pexels-photo-2790386.jpeg?auto=compress&cs=tinysrgb&w=600'}" class="h-full w-full object-cover" alt="${bus.name}">
-            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-            <div class="absolute bottom-4 right-4 text-white"><h4 class="text-2xl font-black">${bus.name}</h4><p class="text-xs text-gold font-bold uppercase">${bus.type}</p></div>
+      displayBuses(buses, from, to);
+    } catch (error) { 
+      console.error("خطأ في جلب الرحلات:", error); 
+      container.innerHTML = '<div class="text-center py-10 text-red-500">حدث خطأ أثناء تحميل الرحلات. تأكد من اتصالك بالإنترنت.</div>'; 
+    }
+  }
+  
+  function displayBuses(buses, from, to) {
+    const container = document.getElementById('buses-container');
+    let filteredBuses = buses;
+    if (currentFilter !== 'all') {
+      filteredBuses = buses.filter(bus => bus.name && bus.name === currentFilter);
+    }
+    
+    if (filteredBuses.length === 0) {
+      const filterText = currentFilter === 'all' ? '' : ` (${currentFilter})`;
+      container.innerHTML = `<div class="text-center py-10 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"><i class="fas fa-route text-5xl text-gray-300 dark:text-gray-600 mb-4"></i><p class="font-bold text-gray-500 dark:text-gray-400">لا توجد رحلات متاحة من ${extractCity(from)} إلى ${extractCity(to)}${filterText}</p><p class="text-sm text-gray-400 mt-2">جرب البحث عن مسار آخر أو غير الفلتر</p></div>`;
+      return;
+    }
+    
+    container.innerHTML = filteredBuses.map(bus => `
+      <div class="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-md border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="relative h-48">
+          <img src="${bus.img || 'https://images.pexels.com/photos/2790386/pexels-photo-2790386.jpeg?auto=compress&cs=tinysrgb&w=600'}" class="h-full w-full object-cover" alt="${bus.name}">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+          <div class="absolute bottom-4 right-4 text-white"><h4 class="text-2xl font-black">${bus.name}</h4><p class="text-xs text-gold font-bold uppercase">${bus.type}</p></div>
+        </div>
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-6 bg-blue-50/50 dark:bg-blue-900/20 p-4 rounded-3xl border border-blue-100 dark:border-blue-800">
+            <div class="text-right"><p class="text-[10px] text-gray-400 font-bold mb-1">جهة التحرك: ${extractCity(bus.from)}</p><p class="font-black text-xl text-royalDark dark:text-white">${bus.depTime}</p></div>
+            <div class="flex-1 flex flex-col items-center px-4"><i class="fas fa-bus text-gold mb-1"></i><div class="w-full border-t border-dashed border-gray-300 dark:border-gray-600"></div></div>
+            <div class="text-left"><p class="text-[10px] text-gray-400 font-bold mb-1">جهة الوصول: ${extractCity(bus.to)}</p><p class="font-black text-xl text-emerald">${bus.arrTime}</p></div>
           </div>
-          <div class="p-6">
-            <div class="flex justify-between items-center mb-6 bg-blue-50/50 dark:bg-blue-900/20 p-4 rounded-3xl border border-blue-100 dark:border-blue-800">
-              <div class="text-right"><p class="text-[10px] text-gray-400 font-bold mb-1">جهة التحرك: ${extractCity(bus.from)}</p><p class="font-black text-xl text-royalDark dark:text-white">${bus.depTime}</p></div>
-              <div class="flex-1 flex flex-col items-center px-4"><i class="fas fa-bus text-gold mb-1"></i><div class="w-full border-t border-dashed border-gray-300 dark:border-gray-600"></div></div>
-              <div class="text-left"><p class="text-[10px] text-gray-400 font-bold mb-1">جهة الوصول: ${extractCity(bus.to)}</p><p class="font-black text-xl text-emerald">${bus.arrTime}</p></div>
-            </div>
-            <div class="flex justify-between items-center">
-              <div><p class="text-[10px] text-gray-400 font-bold">سعر التذكرة</p><p class="font-black text-2xl text-royalDark dark:text-white">${bus.price.toLocaleString()}<span class="text-xs mr-1 font-normal">ج.س</span></p></div>
-              <button onclick="bookTrip('${bus.id}')" class="bg-gold text-royalDark px-8 py-4 rounded-2xl font-black text-sm shadow-lg shadow-gold/20 active:scale-95 transition-all">إحجز مقعدك</button>
-            </div>
+          <div class="flex justify-between items-center">
+            <div><p class="text-[10px] text-gray-400 font-bold">سعر التذكرة</p><p class="font-black text-2xl text-royalDark dark:text-white">${bus.price.toLocaleString()}<span class="text-xs mr-1 font-normal">ج.س</span></p></div>
+            <button onclick="bookTrip('${bus.id}')" class="bg-gold text-royalDark px-8 py-4 rounded-2xl font-black text-sm shadow-lg shadow-gold/20 active:scale-95 transition-all">إحجز مقعدك</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ==================== حجز رحلة (يفتح نافذة الدفع) ====================
+  async function bookTrip(busId) {
+    try {
+      const busDoc = await db.collection("buses").doc(busId).get();
+      if (!busDoc.exists) {
+        alert("الرحلة غير موجودة");
+        return;
+      }
+      const bus = busDoc.data();
+      const passengers = parseInt(document.getElementById('search-passengers').value);
+      const date = document.getElementById('search-date').value;
+      
+      currentBookingBus = { id: busId, ...bus };
+      currentBookingPassengers = passengers;
+      currentBookingDate = date;
+      
+      openPaymentModal();
+      
+    } catch (error) {
+      console.error("خطأ في تجهيز الحجز:", error);
+      alert("حدث خطأ أثناء تجهيز الحجز. الرجاء المحاولة مرة أخرى.");
+    }
+  }
+
+  // ==================== وظائف نافذة الدفع ====================
+  function openPaymentModal() {
+    if (!currentBookingBus) return;
+    
+    const bus = currentBookingBus;
+    const passengers = currentBookingPassengers;
+    const date = currentBookingDate;
+    const totalPrice = bus.price * passengers;
+    const depositAmount = 10000; // العربون
+    
+    const summaryDiv = document.getElementById('paymentTripSummary');
+    summaryDiv.innerHTML = `
+      <div class="flex items-center gap-3 mb-2">
+        <i class="fas fa-bus text-gold"></i>
+        <span class="font-black">${bus.name} (${bus.type})</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span>${extractCity(bus.from)} → ${extractCity(bus.to)}</span>
+        <span>${date} | ${bus.depTime}</span>
+      </div>
+      <div class="flex justify-between text-sm mt-2">
+        <span>عدد التزاكر: ${passengers}</span>
+        <span>الإجمالي: ${totalPrice.toLocaleString()} ج.س</span>
+      </div>
+      <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center">
+        <span class="font-bold">
+           الحجز المبدئي:</span>
+        <span class="font-black text-gold text-xl">${depositAmount.toLocaleString()} ج.س</span>
+      </div>
+    `;
+    
+    document.getElementById('customerFullName').value = '';
+    document.getElementById('customerPhone').value = '';
+    
+    document.getElementById('paymentModal').style.display = 'flex';
+  }
+  
+  function closePaymentModal() {
+    document.getElementById('paymentModal').style.display = 'none';
+  }
+  
+  function copyToClipboard(text, element) {
+    navigator.clipboard.writeText(text).then(() => {
+      const feedback = element.querySelector('.copy-feedback');
+      if (feedback) {
+        feedback.style.opacity = '1';
+        setTimeout(() => { feedback.style.opacity = '0'; }, 1500);
+      }
+    }).catch(err => {
+      alert('تعذر النسخ. الرجاء النسخ يدوياً.');
+    });
+  }
+  
+  async function proceedToUploadReceipt() {
+    if (!currentBookingBus) return;
+    
+    const fullName = document.getElementById('customerFullName').value.trim();
+    const phone = document.getElementById('customerPhone').value.trim();
+    
+    if (!fullName) {
+      alert('الرجاء إدخال الاسم الرباعي الكامل');
+      return;
+    }
+    if (!phone) {
+      alert('الرجاء إدخال رقم الهاتف');
+      return;
+    }
+    
+    const bus = currentBookingBus;
+    const passengers = currentBookingPassengers;
+    const date = currentBookingDate;
+    const totalPrice = bus.price * passengers;
+    
+    const bookingData = {
+      busId: bus.id, busName: bus.name, busType: bus.type,
+      from: bus.from, to: bus.to, date,
+      depTime: bus.depTime, arrTime: bus.arrTime,
+      passengers, pricePerSeat: bus.price, totalPrice,
+      status: "قيد التأكيد (بانتظار الإيصال)",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      contactWhatsApp: WHATSAPP_NUMBER,
+      customerName: fullName,
+      customerPhone: phone,
+      paymentAccounts: {
+        bankak: '2480511',
+        fawry: '51690879',
+        mycashi: '401737159',
+        mashreq: '64498707',
+        name:'أنس أمين خليل أمين'
+      }
+    };
+    
+    try {
+      const docRef = await db.collection("bookings").add(bookingData);
+      
+      const message = `✅ *تأكيد حجز رحلة تزكرتي* ✅\n\n` +
+        `*📋 بيانات العميل:*\n` +
+        `👤 الاسم: ${fullName}\n` +
+        `📞 الهاتف: ${phone}\n\n` +
+        `*🚍 تفاصيل الرحلة:*\n` +
+        `🚌 *${bus.name}* (${bus.type})\n` +
+        `📍 من: ${extractCity(bus.from)} → إلى: ${extractCity(bus.to)}\n` +
+        `📅 التاريخ: ${date} | ⏰ الإقلاع: ${bus.depTime}\n` +
+        `👥 عدد الركاب: ${passengers}\n` +
+        `💵 الإجمالي: ${totalPrice.toLocaleString()} ج.س\n` +
+        `🔖 الحجز المبدئي: 10,000 ج.س\n\n` +
+        `\n\n` +
+        `✅ تم الدفع وسأرفق لك صورة الإيصال.\n` +
+        `🆔 رقم الحجز: ${docRef.id.slice(0,6)}`;
+      
+      const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+      
+      closePaymentModal();
+      window.location.href = whatsappUrl;
+      
+      bookings.push({ id: docRef.id, ...bookingData, total: totalPrice });
+      updateBookingsUI();
+      
+      switchTab('bookings');
+      
+    } catch (error) {
+      console.error("خطأ في حفظ الحجز:", error);
+      alert("حدث خطأ أثناء حفظ الحجز. الرجاء المحاولة مرة أخرى.");
+    }
+  }
+
+  // ==================== حذف حجز ====================
+  async function deleteBooking(bookingId) {
+    if (!confirm('هل أنت متأكد من حذف هذا الحجز؟')) return;
+    
+    try {
+      await db.collection("bookings").doc(bookingId).delete();
+      bookings = bookings.filter(b => b.id !== bookingId);
+      updateBookingsUI();
+    } catch (error) {
+      console.error("خطأ في حذف الحجز:", error);
+      alert("حدث خطأ أثناء حذف الحجز. الرجاء المحاولة مرة أخرى.");
+    }
+  }
+
+  function updateBookingsUI() {
+    const list = document.getElementById('bookings-list');
+    if(bookings.length > 0) {
+      list.innerHTML = bookings.map(b => `
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-[2rem] border-r-8 border-gold shadow-sm relative">
+          <button onclick="deleteBooking('${b.id}')" class="absolute top-4 left-4 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-2">
+            <i class="fas fa-trash-alt text-xl"></i>
+          </button>
+          <div class="flex justify-between items-start mb-4">
+            <div><h4 class="font-black text-lg">${b.busName}</h4><p class="text-xs text-gray-500 dark:text-gray-400">${b.date} - ${b.depTime}</p></div>
+            <span class="bg-emerald/10 text-emerald text-[10px] font-bold px-3 py-1 rounded-full uppercase ml-10">${b.status || 'مؤكد'}</span>
+          </div>
+          <div class="flex items-center gap-3 mb-5 text-sm font-bold">
+            <span>${extractCity(b.from)}</span><i class="fas fa-arrow-left text-gold"></i><span>${extractCity(b.to)}</span>
+          </div>
+          <div class="flex justify-between items-center border-t border-gray-50 dark:border-gray-700 pt-4">
+            <div><p class="text-[10px] text-gray-400 font-bold">الركاب: ${b.passengers}</p><p class="font-black text-royalDark dark:text-white">${b.totalPrice.toLocaleString()} ج.س</p></div>
+            <a href="https://wa.me/${b.contactWhatsApp || WHATSAPP_NUMBER}?text=${encodeURIComponent('تفاصيل الحجز: ' + b.busName + ' من ' + extractCity(b.from) + ' إلى ' + extractCity(b.to) + ' بتاريخ ' + b.date)}" class="bg-[#25D366] text-white px-5 py-3 rounded-xl text-xs font-bold flex items-center gap-2"><i class="fab fa-whatsapp text-lg"></i> تأكيد الطلب</a>
           </div>
         </div>
       `).join('');
+    } else {
+      list.innerHTML = `<div class="text-center py-20 bg-white dark:bg-gray-800 rounded-[2rem] border border-dashed border-gray-300 dark:border-gray-600"><i class="fas fa-ticket-alt text-5xl text-gray-200 dark:text-gray-600 mb-4 block"></i><p class="text-gray-400 dark:text-gray-500 font-bold">لا توجد حجوزات نشطة حالياً</p></div>`;
     }
+  }
 
-    // ==================== حجز رحلة (يفتح نافذة الدفع) ====================
-    async function bookTrip(busId) {
-      try {
-        const busDoc = await db.collection("buses").doc(busId).get();
-        if (!busDoc.exists) {
-          alert("الرحلة غير موجودة");
-          return;
-        }
-        const bus = busDoc.data();
-        const passengers = parseInt(document.getElementById('search-passengers').value);
-        const date = document.getElementById('search-date').value;
-        
-        currentBookingBus = { id: busId, ...bus };
-        currentBookingPassengers = passengers;
-        currentBookingDate = date;
-        
-        openPaymentModal();
-        
-      } catch (error) {
-        console.error("خطأ في تجهيز الحجز:", error);
-        alert("حدث خطأ أثناء تجهيز الحجز. الرجاء المحاولة مرة أخرى.");
-      }
-    }
+  function switchTab(t) {
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(n => n.classList.replace('text-gold', 'text-gray-400'));
+    document.getElementById('view-'+t).classList.add('active');
+    document.getElementById('nav-'+t).classList.replace('text-gray-400', 'text-gold');
+    window.scrollTo(0,0);
+  }
 
-    // ==================== وظائف نافذة الدفع ====================
-    function openPaymentModal() {
-      if (!currentBookingBus) return;
-      
-      const bus = currentBookingBus;
-      const passengers = currentBookingPassengers;
-      const date = currentBookingDate;
-      const totalPrice = bus.price * passengers;
-      const depositAmount = 10000; // العربون
-      
-      const summaryDiv = document.getElementById('paymentTripSummary');
-      summaryDiv.innerHTML = `
-        <div class="flex items-center gap-3 mb-2">
-          <i class="fas fa-bus text-gold"></i>
-          <span class="font-black">${bus.name} (${bus.type})</span>
-        </div>
-        <div class="flex justify-between text-sm">
-          <span>${extractCity(bus.from)} → ${extractCity(bus.to)}</span>
-          <span>${date} | ${bus.depTime}</span>
-        </div>
-        <div class="flex justify-between text-sm mt-2">
-          <span>عدد التزاكر: ${passengers}</span>
-          <span>الإجمالي: ${totalPrice.toLocaleString()} ج.س</span>
-        </div>
-        <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center">
-          <span class="font-bold">
-             الحجز المبدئي:</span>
-          <span class="font-black text-gold text-xl">${depositAmount.toLocaleString()} ج.س</span>
-        </div>
-      `;
-      
-      document.getElementById('customerFullName').value = '';
-      document.getElementById('customerPhone').value = '';
-      
-      document.getElementById('paymentModal').style.display = 'flex';
-    }
-    
-    function closePaymentModal() {
-      document.getElementById('paymentModal').style.display = 'none';
-    }
-    
-    function copyToClipboard(text, element) {
-      navigator.clipboard.writeText(text).then(() => {
-        const feedback = element.querySelector('.copy-feedback');
-        if (feedback) {
-          feedback.style.opacity = '1';
-          setTimeout(() => { feedback.style.opacity = '0'; }, 1500);
-        }
-      }).catch(err => {
-        alert('تعذر النسخ. الرجاء النسخ يدوياً.');
-      });
-    }
-    
-    async function proceedToUploadReceipt() {
-      if (!currentBookingBus) return;
-      
-      const fullName = document.getElementById('customerFullName').value.trim();
-      const phone = document.getElementById('customerPhone').value.trim();
-      
-      if (!fullName) {
-        alert('الرجاء إدخال الاسم الرباعي الكامل');
-        return;
-      }
-      if (!phone) {
-        alert('الرجاء إدخال رقم الهاتف');
-        return;
-      }
-      
-      const bus = currentBookingBus;
-      const passengers = currentBookingPassengers;
-      const date = currentBookingDate;
-      const totalPrice = bus.price * passengers;
-      
-      const bookingData = {
-        busId: bus.id, busName: bus.name, busType: bus.type,
-        from: bus.from, to: bus.to, date,
-        depTime: bus.depTime, arrTime: bus.arrTime,
-        passengers, pricePerSeat: bus.price, totalPrice,
-        status: "قيد التأكيد (بانتظار الإيصال)",
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        contactWhatsApp: WHATSAPP_NUMBER,
-        customerName: fullName,
-        customerPhone: phone,
-        paymentAccounts: {
-          bankak: '2480511',
-          fawry: '51690879',
-          mycashi: '401737159',
-          mashreq: '64498707',
-          name:'أنس أمين خليل أمين'
-        }
-      };
-      
-      try {
-        const docRef = await db.collection("bookings").add(bookingData);
-        
-        const message = `✅ *تأكيد حجز رحلة تزكرتي* ✅\n\n` +
-          `*📋 بيانات العميل:*\n` +
-          `👤 الاسم: ${fullName}\n` +
-          `📞 الهاتف: ${phone}\n\n` +
-          `*🚍 تفاصيل الرحلة:*\n` +
-          `🚌 *${bus.name}* (${bus.type})\n` +
-          `📍 من: ${extractCity(bus.from)} → إلى: ${extractCity(bus.to)}\n` +
-          `📅 التاريخ: ${date} | ⏰ الإقلاع: ${bus.depTime}\n` +
-          `👥 عدد الركاب: ${passengers}\n` +
-          `💵 الإجمالي: ${totalPrice.toLocaleString()} ج.س\n` +
-          `🔖 الحجز المبدئي: 10,000 ج.س\n\n` +
-          `\n\n` +
-          `✅ تم الدفع وسأرفق لك صورة الإيصال.\n` +
-          `🆔 رقم الحجز: ${docRef.id.slice(0,6)}`;
-        
-        const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-        
-        closePaymentModal();
-        window.location.href = whatsappUrl;
-        
-        bookings.push({ id: docRef.id, ...bookingData, total: totalPrice });
-        updateBookingsUI();
-        
-        switchTab('bookings');
-        
-      } catch (error) {
-        console.error("خطأ في حفظ الحجز:", error);
-        alert("حدث خطأ أثناء حفظ الحجز. الرجاء المحاولة مرة أخرى.");
-      }
-    }
+  // ==================== بدء التطبيق بتسجيل الدخول المجهول ====================
+  window.onload = () => {
+    signInAnonymouslyAndInit();
+  };
 
-    // ==================== حذف حجز ====================
-    async function deleteBooking(bookingId) {
-      if (!confirm('هل أنت متأكد من حذف هذا الحجز؟')) return;
-      
-      try {
-        await db.collection("bookings").doc(bookingId).delete();
-        bookings = bookings.filter(b => b.id !== bookingId);
-        updateBookingsUI();
-      } catch (error) {
-        console.error("خطأ في حذف الحجز:", error);
-        alert("حدث خطأ أثناء حذف الحجز. الرجاء المحاولة مرة أخرى.");
-      }
-    }
-
-    function updateBookingsUI() {
-      const list = document.getElementById('bookings-list');
-      if(bookings.length > 0) {
-        list.innerHTML = bookings.map(b => `
-          <div class="bg-white dark:bg-gray-800 p-6 rounded-[2rem] border-r-8 border-gold shadow-sm relative">
-            <button onclick="deleteBooking('${b.id}')" class="absolute top-4 left-4 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-2">
-              <i class="fas fa-trash-alt text-xl"></i>
-            </button>
-            <div class="flex justify-between items-start mb-4">
-              <div><h4 class="font-black text-lg">${b.busName}</h4><p class="text-xs text-gray-500 dark:text-gray-400">${b.date} - ${b.depTime}</p></div>
-              <span class="bg-emerald/10 text-emerald text-[10px] font-bold px-3 py-1 rounded-full uppercase ml-10">${b.status || 'مؤكد'}</span>
-            </div>
-            <div class="flex items-center gap-3 mb-5 text-sm font-bold">
-              <span>${extractCity(b.from)}</span><i class="fas fa-arrow-left text-gold"></i><span>${extractCity(b.to)}</span>
-            </div>
-            <div class="flex justify-between items-center border-t border-gray-50 dark:border-gray-700 pt-4">
-              <div><p class="text-[10px] text-gray-400 font-bold">الركاب: ${b.passengers}</p><p class="font-black text-royalDark dark:text-white">${b.totalPrice.toLocaleString()} ج.س</p></div>
-              <a href="https://wa.me/${b.contactWhatsApp || WHATSAPP_NUMBER}?text=${encodeURIComponent('تفاصيل الحجز: ' + b.busName + ' من ' + extractCity(b.from) + ' إلى ' + extractCity(b.to) + ' بتاريخ ' + b.date)}" class="bg-[#25D366] text-white px-5 py-3 rounded-xl text-xs font-bold flex items-center gap-2"><i class="fab fa-whatsapp text-lg"></i> تأكيد الطلب</a>
-            </div>
-          </div>
-        `).join('');
-      } else {
-        list.innerHTML = `<div class="text-center py-20 bg-white dark:bg-gray-800 rounded-[2rem] border border-dashed border-gray-300 dark:border-gray-600"><i class="fas fa-ticket-alt text-5xl text-gray-200 dark:text-gray-600 mb-4 block"></i><p class="text-gray-400 dark:text-gray-500 font-bold">لا توجد حجوزات نشطة حالياً</p></div>`;
-      }
-    }
-
-    function switchTab(t) {
-      document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(n => n.classList.replace('text-gold', 'text-gray-400'));
-      document.getElementById('view-'+t).classList.add('active');
-      document.getElementById('nav-'+t).classList.replace('text-gray-400', 'text-gold');
-      window.scrollTo(0,0);
-    }
-
-    // ==================== تهيئة الصفحة ====================
-    window.onload = async () => {
-      initTheme();
-      await loadStates();
-      await loadBusFilters();
-      startOnboardingIfNeeded();
-      window.addEventListener('resize', updateArrowsVisibility);
-      
-      // ملاحظة للمطور: يمكنك إظهار زر مسح الكاش عبر console:
-      // document.getElementById('devClearCacheBtn').style.display = 'block';
-    };
-
-    // تعريض الدوال للاستخدام العام
-    window.switchTab = switchTab;
-    window.renderBuses = renderBuses;
-    window.bookTrip = bookTrip;
-    window.deleteBooking = deleteBooking;
-    window.nextStep = nextStep;
-    window.prevStep = prevStep;
-    window.skipOnboarding = skipOnboarding;
-    window.scrollFilters = scrollFilters;
-    window.closePaymentModal = closePaymentModal;
-    window.copyToClipboard = copyToClipboard;
-    window.proceedToUploadReceipt = proceedToUploadReceipt;
+  // تعريض الدوال للاستخدام العام
+  window.switchTab = switchTab;
+  window.renderBuses = renderBuses;
+  window.bookTrip = bookTrip;
+  window.deleteBooking = deleteBooking;
+  window.nextStep = nextStep;
+  window.prevStep = prevStep;
+  window.skipOnboarding = skipOnboarding;
+  window.scrollFilters = scrollFilters;
+  window.closePaymentModal = closePaymentModal;
+  window.copyToClipboard = copyToClipboard;
+  window.proceedToUploadReceipt = proceedToUploadReceipt;
   </script>
 </body>
 </html>
