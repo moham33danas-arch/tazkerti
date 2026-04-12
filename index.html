@@ -624,23 +624,23 @@
   </nav>
 
   <script>
-    // ==================== إعدادات Firebase ====================
-    const firebaseConfig = {
-      apiKey: "AIzaSyAhbOmc45Xx5-7Y_0yr_mNIAawHO-zuYLc",
-      authDomain: "buses-e85e3.firebaseapp.com",
-      projectId: "buses-e85e3",
-      storageBucket: "buses-e85e3.firebasestorage.app",
-      messagingSenderId: "749776297303",
-      appId: "1:749776297303:web:8cc1679168f69fb2d6f212",
-      measurementId: "G-DR5L6E9RWS"
-    };
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCqhawEguWOGyIOPjMdeSLcc454VKxZIpo",
+  authDomain: "buses-2e2d0.firebaseapp.com",
+  projectId: "buses-2e2d0",
+  storageBucket: "buses-2e2d0.firebasestorage.app",
+  messagingSenderId: "379904295972",
+  appId: "1:379904295972:web:b84e9a9c9aab853469c4b1",
+  measurementId: "G-Z0XJ4TPPBT"
+};
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // ==================== ثوابت التطبيق ====================
+    // ==================== 🟢ثوابت التطبيق🟢 ====================
     const WHATSAPP_NUMBER = '249924299798'; // رقم الواتساب الثابت
-    const CACHE_TTL = 3 * 60 * 60 * 1000; // 3 ساعات بالميلي ثانية
+    const CACHE_TTL = 0 * 60 * 60 * 1000; // 3 ساعات بالميلي ثانية
 
     let bookings = [];
     let stateList = [];
