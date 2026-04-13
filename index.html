@@ -708,8 +708,7 @@
 
   async function initApp() {
     initTheme();
-    await loadStates();
-    await loadBusFilters();
+    await loadInitialData(); // جلب جميع الباصات مرة واحدة
     startOnboardingIfNeeded();
     window.addEventListener('resize', updateArrowsVisibility);
     
@@ -732,21 +731,24 @@
     return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
   }
 
-  // ==================== ثوابت التطبيق ====================
+  // ====================🟢🟢🟢🟢🟢🟢🟢🟢 ثوابت التطبيق🟢🟢🟢🟢🟢🟢🟢🟢 ====================
   const WHATSAPP_NUMBER = '249924299798';
-  const CACHE_TTL = 0;
+  const CACHE_TTL = 0 * 60 * 1000; // ساعة واحدة
   
   let bookings = [];
   let stateList = [];
   let currentFilter = 'all';
   let busNamesList = [];
   
+  // تخزين جميع الباصات محلياً للتصفية السريعة
+  let cachedAllBuses = [];
+  
   let currentBookingBus = null;
   let currentBookingPassengers = 1;
   let currentBookingDate = '';
 
+  // دوال مساعدة للتخزين المؤقت
   function getCachedData(key) {
-    if (CACHE_TTL === 0) return null;
     try {
       const cached = localStorage.getItem(key);
       if (!cached) return null;
@@ -760,7 +762,6 @@
   }
 
   function setCachedData(key, value) {
-    if (CACHE_TTL === 0) return;
     try {
       const data = { value: value, expiry: Date.now() + CACHE_TTL };
       localStorage.setItem(key, JSON.stringify(data));
@@ -773,8 +774,7 @@
       if (key.startsWith('tazkarti_')) localStorage.removeItem(key);
     }
     alert('تم مسح الكاش');
-    loadStates(); loadBusFilters();
-    if (document.getElementById('search-from').value) renderBuses();
+    loadInitialData();
   };
 
   // ==================== PWA ====================
@@ -878,74 +878,94 @@
 
   function extractCity(fullName) { if (!fullName) return ''; const match = fullName.match(/\(([^)]+)\)/); return match ? match[1] : fullName; }
 
-  // ==================== تحميل الولايات ====================
-  async function loadStates() {
+  // ==================== تحميل البيانات الأولية (جميع الباصات) ====================
+  async function loadInitialData() {
     const fromSelect = document.getElementById('search-from');
     const toSelect = document.getElementById('search-to');
     
-    const cachedStates = getCachedData('tazkarti_states');
-    if (cachedStates && Array.isArray(cachedStates) && cachedStates.length > 0) {
-      stateList = cachedStates;
-      populateStateSelects(stateList);
+    // محاولة جلب البيانات من الكاش أولاً
+    const cachedBuses = getCachedData('tazkarti_all_buses');
+    if (cachedBuses && Array.isArray(cachedBuses) && cachedBuses.length > 0) {
+      cachedAllBuses = cachedBuses;
+      extractAndPopulateStatesAndFilters(cachedAllBuses);
+      console.log('📦 تم تحميل البيانات من الكاش المحلي.');
       return;
     }
     
+    // إذا لم يوجد كاش، نجلب من Firestore
     try {
+      console.log('☁️ جلب جميع الباصات من Firestore...');
       const snapshot = await db.collection("buses").get();
-      const fromStates = new Set(); const toStates = new Set();
-      snapshot.forEach(doc => { const data = doc.data(); if (data.from) fromStates.add(data.from); if (data.to) toStates.add(data.to); });
-      const allStates = [...new Set([...fromStates, ...toStates])].sort();
-      if (allStates.length === 0) {
+      const buses = [];
+      snapshot.forEach(doc => {
+        buses.push({ id: doc.id, ...doc.data() });
+      });
+      
+      if (buses.length === 0) {
         fromSelect.innerHTML = '<option value="">لا توجد مناطق مضافة</option>';
         toSelect.innerHTML = '<option value="">لا توجد مناطق مضافة</option>';
+        busNamesList = [];
+        renderFilterChips([]);
         return;
       }
-      stateList = allStates;
-      setCachedData('tazkarti_states', stateList);
-      populateStateSelects(stateList);
+      
+      cachedAllBuses = buses;
+      setCachedData('tazkarti_all_buses', buses);
+      extractAndPopulateStatesAndFilters(buses);
+      
     } catch (error) {
-      console.error("خطأ في تحميل المناطق:", error);
+      console.error("خطأ في تحميل البيانات الأولية:", error);
       fromSelect.innerHTML = '<option value="">خطأ في التحميل</option>';
       toSelect.innerHTML = '<option value="">خطأ في التحميل</option>';
     }
   }
   
+  function extractAndPopulateStatesAndFilters(buses) {
+    // استخراج الولايات وأسماء الباصات
+    const fromStates = new Set();
+    const toStates = new Set();
+    const busNames = new Set();
+    
+    buses.forEach(bus => {
+      if (bus.from) fromStates.add(bus.from);
+      if (bus.to) toStates.add(bus.to);
+      if (bus.name) busNames.add(bus.name);
+    });
+    
+    stateList = [...new Set([...fromStates, ...toStates])].sort();
+    busNamesList = Array.from(busNames).sort();
+    
+    // تحديث القوائم المنسدلة
+    populateStateSelects(stateList);
+    renderFilterChips(busNamesList);
+    
+    // تخزين القوائم المستخلصة في الكاش أيضاً (اختياري)
+    setCachedData('tazkarti_states', stateList);
+    setCachedData('tazkarti_bus_filters', busNamesList);
+  }
+  
   function populateStateSelects(states) {
     const fromSelect = document.getElementById('search-from');
     const toSelect = document.getElementById('search-to');
+    
+    if (!states || states.length === 0) {
+      fromSelect.innerHTML = '<option value="">لا توجد مناطق</option>';
+      toSelect.innerHTML = '<option value="">لا توجد مناطق</option>';
+      return;
+    }
+    
     const renderOptions = (selectedValue = null) => states.map(state => {
       const cityName = extractCity(state);
       const selected = (selectedValue === state) ? 'selected' : '';
       return `<option value="${state}" ${selected}>${cityName}</option>`;
     }).join('');
+    
     fromSelect.innerHTML = renderOptions(states[0]);
-    toSelect.innerHTML = renderOptions(states[0] === states[states.length-1] ? states[0] : states[1] || states[0]);
-    if (states.length > 1) toSelect.value = states[1];
+    // اختيار قيمة افتراضية مختلفة للوصول إن أمكن
+    const defaultTo = states.length > 1 ? states[1] : states[0];
+    toSelect.innerHTML = renderOptions(defaultTo);
   }
 
-  // ==================== تحميل أسماء الباصات ====================
-  async function loadBusFilters() {
-    const cachedFilters = getCachedData('tazkarti_bus_filters');
-    if (cachedFilters && Array.isArray(cachedFilters)) {
-      busNamesList = cachedFilters;
-      renderFilterChips(busNamesList);
-      return;
-    }
-    
-    try {
-      const snapshot = await db.collection("buses").get();
-      const busNames = new Set();
-      snapshot.forEach(doc => { const data = doc.data(); if (data.name) busNames.add(data.name); });
-      busNamesList = Array.from(busNames).sort();
-      setCachedData('tazkarti_bus_filters', busNamesList);
-      renderFilterChips(busNamesList);
-    } catch (error) {
-      console.error("خطأ في تحميل أسماء الباصات:", error);
-      busNamesList = ["أبو عامر", "العزيزية", "شريان الشمال", "أبو هشام"];
-      renderFilterChips(busNamesList);
-    }
-  }
-  
   function renderFilterChips(names) {
     const filterChipsContainer = document.getElementById('filterChips');
     let chipsHtml = `<button data-filter="all" class="filter-chip active">الكل</button>`;
@@ -991,42 +1011,52 @@
     leftArrow.classList.toggle('disabled', scrollLeft >= maxScroll - 5);
   }
 
-  // ==================== جلب الرحلات ====================
+  // ==================== جلب الرحلات (تصفية محلية) ====================
   async function renderBuses() {
     const container = document.getElementById('buses-container');
     const from = document.getElementById('search-from').value;
     const to = document.getElementById('search-to').value;
     if (!from || !to) { container.innerHTML = '<div class="text-center py-10 text-gray-400">الرجاء اختيار محطتي المغادرة والوصول</div>'; return; }
     
-    const cacheKey = `tazkarti_buses_${from}_${to}`;
-    const cachedBuses = getCachedData(cacheKey);
-    if (cachedBuses && Array.isArray(cachedBuses)) { displayBuses(cachedBuses, from, to); return; }
+    // استخدام البيانات المخزنة محلياً للتصفية
+    let busesToDisplay = [];
     
-    container.innerHTML = '<div class="text-center py-10"><i class="fas fa-spinner fa-pulse text-2xl text-gold"></i><p class="mt-2">جاري تحميل الرحلات...</p></div>';
-    
-    try {
-      const snapshot = await db.collection("buses").where("from", "==", from).where("to", "==", to).get();
-      let buses = []; 
-      snapshot.forEach(doc => buses.push({ id: doc.id, ...doc.data() }));
-      setCachedData(cacheKey, buses);
-      displayBuses(buses, from, to);
-    } catch (error) { 
-      console.error("خطأ في جلب الرحلات:", error); 
-      container.innerHTML = '<div class="text-center py-10 text-red-500">حدث خطأ أثناء تحميل الرحلات. تأكد من اتصالك بالإنترنت.</div>'; 
+    if (cachedAllBuses.length > 0) {
+      // تصفية محلية سريعة
+      busesToDisplay = cachedAllBuses.filter(bus => bus.from === from && bus.to === to);
+      if (currentFilter !== 'all') {
+        busesToDisplay = busesToDisplay.filter(bus => bus.name === currentFilter);
+      }
+    } else {
+      // في حالة عدم وجود كاش (نادر)، نجلب من Firestore
+      container.innerHTML = '<div class="text-center py-10"><i class="fas fa-spinner fa-pulse text-2xl text-gold"></i><p class="mt-2">جاري تحميل الرحلات...</p></div>';
+      try {
+        const snapshot = await db.collection("buses").where("from", "==", from).where("to", "==", to).get();
+        busesToDisplay = [];
+        snapshot.forEach(doc => busesToDisplay.push({ id: doc.id, ...doc.data() }));
+        if (currentFilter !== 'all') {
+          busesToDisplay = busesToDisplay.filter(bus => bus.name === currentFilter);
+        }
+      } catch (error) {
+        console.error("خطأ في جلب الرحلات:", error);
+        container.innerHTML = '<div class="text-center py-10 text-red-500">حدث خطأ أثناء تحميل الرحلات. تأكد من اتصالك بالإنترنت.</div>';
+        return;
+      }
     }
+    
+    displayBuses(busesToDisplay, from, to);
   }
   
   function displayBuses(buses, from, to) {
     const container = document.getElementById('buses-container');
-    let filteredBuses = (currentFilter === 'all') ? buses : buses.filter(bus => bus.name === currentFilter);
     
-    if (filteredBuses.length === 0) {
+    if (buses.length === 0) {
       const filterText = currentFilter === 'all' ? '' : ` (${currentFilter})`;
       container.innerHTML = `<div class="text-center py-10 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700"><i class="fas fa-route text-5xl text-gray-300 dark:text-gray-600 mb-4"></i><p class="font-bold text-gray-500 dark:text-gray-400">لا توجد رحلات متاحة من ${extractCity(from)} إلى ${extractCity(to)}${filterText}</p></div>`;
       return;
     }
     
-    container.innerHTML = filteredBuses.map(bus => {
+    container.innerHTML = buses.map(bus => {
       const depTime12 = formatTime12Hour(bus.depTime);
       const arrTime12 = formatTime12Hour(bus.arrTime);
       return `
@@ -1054,13 +1084,19 @@
   // ==================== حجز رحلة ====================
   async function bookTrip(busId) {
     try {
-      const busDoc = await db.collection("buses").doc(busId).get();
-      if (!busDoc.exists) { alert("الرحلة غير موجودة"); return; }
-      const bus = busDoc.data();
+      // البحث عن الباص في الذاكرة المخبأة أولاً
+      let bus = cachedAllBuses.find(b => b.id === busId);
+      if (!bus) {
+        // إذا لم يوجد محلياً، نجلبه من Firestore (حالة نادرة)
+        const busDoc = await db.collection("buses").doc(busId).get();
+        if (!busDoc.exists) { alert("الرحلة غير موجودة"); return; }
+        bus = { id: busId, ...busDoc.data() };
+      }
+      
       const passengers = parseInt(document.getElementById('search-passengers').value);
       const date = document.getElementById('search-date').value;
       
-      currentBookingBus = { id: busId, ...bus };
+      currentBookingBus = bus;
       currentBookingPassengers = passengers;
       currentBookingDate = date;
       
