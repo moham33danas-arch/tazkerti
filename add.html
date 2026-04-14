@@ -308,6 +308,11 @@
     const db = firebase.firestore();
     const auth = firebase.auth();
 
+    // ===== ضبط Persistence على NONE لمنع تذكر الجلسة =====
+    auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
+      .then(() => console.log("✅ تم ضبط الجلسة على NONE (لا تذكر)"))
+      .catch(e => console.error("❌ خطأ في ضبط persistence:", e));
+
     let allCities = [];
 
     // ==================== دوال مساعدة للوقت ====================
@@ -345,7 +350,7 @@
       const errorDiv = document.getElementById('loginError');
       
       try {
-        await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+        // لم نعد بحاجة لاستدعاء setPersistence هنا لأننا ضبطناها مسبقاً إلى NONE
         await auth.signInWithEmailAndPassword(email, password);
       } catch (error) {
         console.error('خطأ تسجيل الدخول:', error);
@@ -368,6 +373,7 @@
       const userEmailDisplay = document.getElementById('userEmailDisplay');
       
       if (user) {
+        // يوجد مستخدم مسجل دخوله حالياً (داخل الجلسة الحالية)
         loginScreen.style.display = 'none';
         mainContent.style.display = 'block';
         if (userEmailDisplay) userEmailDisplay.textContent = user.email;
@@ -377,6 +383,7 @@
         populateHourSelect(document.getElementById('depHour'));
         populateHourSelect(document.getElementById('arrHour'));
       } else {
+        // لا يوجد مستخدم، إظهار شاشة الدخول
         loginScreen.style.display = 'flex';
         mainContent.style.display = 'none';
         document.getElementById('loginForm').reset();
