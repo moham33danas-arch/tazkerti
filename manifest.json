@@ -20,16 +20,7 @@
       "src": "/A/1776106978359~2.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/A/1776106978359~2.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Home Screen"
+      "purpose": "any"
     }
   ]
 }
