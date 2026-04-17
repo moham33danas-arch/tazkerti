@@ -13,19 +13,23 @@
     {
       "src": "/A/1776106978359~2.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/A/1776106978359~2.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
       "src": "/A/1776106978359~2.png",
-      "sizes": "1080x1920",
-      "type": "image/png"
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Home Screen"
     }
   ]
 }
