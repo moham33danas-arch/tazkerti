@@ -1,25 +1,25 @@
 {
   "name": "تزكرتي",
-  "short_name":"تزكرتي",
+  "short_name": "تزكرتي",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e3a8a",
   "orientation": "portrait",
-  "description":"أفضل موقع لحجز التزاكر اونلاين",
+  "description": "أفضل موقع لحجز التزاكر اونلاين",
   "scope": "/",
   "icons": [
-  {
-    "src": "/A/1776106978359~2.png",
-    "sizes": "192x192",
-    "type": "image/png"
-  },
-  {
-    "src": "/A/1776106978359~2.png",
-    "sizes": "512x512",
-    "type": "image/png"
-  }
-  ]
+    {
+      "src": "/A/1776106978359~2.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/A/1776106978359~2.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
   "screenshots": [
     {
       "src": "/A/1776106978359~2.png",
