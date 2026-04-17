@@ -1,7 +1,6 @@
 // ========== الأمان والحماية ==========
 function safeHTML(str) {
     if (!str) return '';
-    
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
@@ -21,7 +20,6 @@ if ('serviceWorker' in navigator) {
             .then(function(registration) {
                 console.log('✅ Service Worker registered with scope:', registration.scope);
                 
-                // تحقق إذا فيه تحديث جديد
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
                     console.log('🔄 New Service Worker found!');
@@ -39,7 +37,6 @@ if ('serviceWorker' in navigator) {
             });
     });
 
-    // تحديث الصفحة عندما يصبح الـ Service Worker جاهز
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!refreshing) {
@@ -52,7 +49,6 @@ if ('serviceWorker' in navigator) {
 
 // ========== إشعار التحديث ==========
 function showUpdateNotification() {
-    // إنشاء عنصر الإشعار
     const notification = document.createElement('div');
     notification.style.cssText = `
         position: fixed;
@@ -85,7 +81,6 @@ function showUpdateNotification() {
     
     document.body.appendChild(notification);
     
-    // إزالة الإشعار تلقائياً بعد 10 ثواني
     setTimeout(() => {
         if (document.body.contains(notification)) {
             document.body.removeChild(notification);
@@ -95,20 +90,16 @@ function showUpdateNotification() {
 
 // ========== إدارة الحالة ==========
 const AppState = {
-    // حالة التطبيق
     currentUser: null,
     isOnline: navigator.onLine,
     
-    // تهيئة التطبيق
     init() {
         this.setupEventListeners();
         this.checkAuthStatus();
-        console.log('🚀 M-STORE Initialized');
+        console.log('🚀 Tazkerti App Initialized');
     },
     
-    // إعداد مستمعي الأحداث
     setupEventListeners() {
-        // أحداث الاتصال بالإنترنت
         window.addEventListener('online', () => {
             this.isOnline = true;
             this.showOnlineStatus();
@@ -119,7 +110,6 @@ const AppState = {
             this.showOfflineStatus();
         });
         
-        // منع الإجراءات الافتراضية
         document.addEventListener('contextmenu', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
                 return;
@@ -128,7 +118,6 @@ const AppState = {
         });
     },
     
-    // التحقق من حالة المصادقة
     checkAuthStatus() {
         const token = localStorage.getItem('authToken');
         if (token) {
@@ -136,10 +125,8 @@ const AppState = {
         }
     },
     
-    // التحقق من صحة التوكن
     validateToken(token) {
         try {
-            // منطق التحقق من التوكن
             return JSON.parse(atob(token.split('.')[1]));
         } catch (error) {
             localStorage.removeItem('authToken');
@@ -147,7 +134,6 @@ const AppState = {
         }
     },
     
-    // عرض حالة الاتصال
     showOnlineStatus() {
         this.showToast('✅ تم استعادة الاتصال بالإنترنت', 'success');
     },
@@ -156,9 +142,86 @@ const AppState = {
         this.showToast('⚠️ أنت غير متصل بالإنترنت', 'warning');
     },
     
-    // عرض إشعارات
     showToast(message, type = 'info') {
         const toast = document.createElement('div');
         const styles = {
             info: 'background: #3b82f6; color: white;',
             success: 'background: #10b981; color: white;',
+            warning: 'background: #f59e0b; color: white;',
+            error: 'background: #ef4444; color: white;'
+        };
+        
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 6px;
+            z-index: 9999;
+            font-weight: bold;
+            ${styles[type] || styles.info}
+        `;
+        
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            if (document.body.contains(toast)) {
+                document.body.removeChild(toast);
+            }
+        }, 3000);
+    }
+};
+
+// ========== الأدوات المساعدة ==========
+const Utils = {
+    formatDate(date) {
+        return new Date(date).toLocaleDateString('ar-EG');
+    },
+    
+    sanitizeInput(input) {
+        return input.trim().replace(/[<>]/g, '');
+    },
+    
+    async loadPage(url) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Network error');
+            return await response.text();
+        } catch (error) {
+            console.error('❌ Error loading page:', error);
+            return '<p>خطأ في تحميل الصفحة</p>';
+        }
+    },
+    
+    smoothScrollTo(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+};
+
+// ========== تهيئة التطبيق عند تحميل الصفحة ==========
+document.addEventListener('DOMContentLoaded', function() {
+    AppState.init();
+    
+    // يمكنك تغيير العناوين حسب الحاجة
+    displaySafeText('app-title', 'تطبيق تذكرة');
+    
+    if (!AppState.isOnline) {
+        AppState.showOfflineStatus();
+    }
+});
+
+// ========== التعامل مع الأخطاء العامة ==========
+window.addEventListener('error', function(e) {
+    console.error('💥 Global error:', e.error);
+});
+
+// جعل بعض الدوال متاحة عالميًا
+window.safeHTML = safeHTML;
+window.displaySafeText = displaySafeText;
+window.AppState = AppState;
+window.Utils = Utils;
