@@ -9,12 +9,12 @@
   "scope": "/",
   "icons": [
   {
-    "src": "https://res.cloudinary.com/dim7huhc3/image/upload/v1776110838/1776106978359_2_p4uq6y.jpg",
+    "src": "A/1776106978359~2.png",
     "sizes": "192x192",
     "type": "image/png"
   },
   {
-    "src": "https://res.cloudinary.com/dim7huhc3/image/upload/v1776110838/1776106978359_2_p4uq6y.jpg",
+    "src": "A/1776106978359~2.png",
     "sizes": "512x512",
     "type": "image/png"
   }
