@@ -2,7 +2,6 @@
   "name": "تزكرتي",
   "short_name": "تزكرتي",
   "description": "أفضل موقع لحجز التذاكر اونلاين",
-  "id": "/?tazkarti",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -14,13 +13,11 @@
       "src": "/A/1776403886709.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
     },
     {
       "src": "/A/1776106978359~2.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
     }
   ]
 }
