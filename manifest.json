@@ -1,12 +1,13 @@
 {
   "name": "تزكرتي",
   "short_name": "تزكرتي",
+  "description": "أفضل موقع لحجز التذاكر اونلاين",
+  "id": "/?tazkarti",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e3a8a",
   "orientation": "portrait",
-  "description": "أفضل موقع لحجز التزاكر اونلاين",
   "scope": "/",
   "icons": [
     {
