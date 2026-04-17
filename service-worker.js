@@ -1,10 +1,9 @@
-const CACHE_NAME = 'MOSTAGBAL-STORE';
+const CACHE_NAME = 'Tazkerti_v1';
 const urlsToCache = [
   '/script.js',
-  '/login.html',
   '/manifest.json',
-  '/register.html',
-  // الملفات الثابتة اللي مش بتتغير
+  '/index.html',        // أضفنا الصفحة الرئيسية لضمان العمل offline
+  '/add.html'           // أضفناها لأنها موجودة في dynamicFiles
 ];
 
 // Install Event
@@ -41,24 +40,22 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // الملفات الديناميكية اللي بتتغير باستمرار
   const dynamicFiles = [
-    '',
+    '',                    // الصفحة الرئيسية الفارغة
     '/index.html',
-    '/about.html',
     '/add.html',
-    
+    '/manifest.json'
+    // تمت إزالة الفاصلة الزائدة
   ];
   
   const isDynamicFile = dynamicFiles.some(file => 
     event.request.url.includes(file)
   );
 
-  // إذا كان طلب لملفات HTML الديناميكية
   if (isDynamicFile) {
-    // Network First Strategy - النت أولاً
+    // Network First Strategy للصفحات الديناميكية
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          // إذا نجح التحميل من النت، خزن النسخة الجديدة
           if (networkResponse && networkResponse.status === 200) {
             const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME)
@@ -70,7 +67,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // إذا فشل التحميل من النت، جيب من الكاش
           console.log('Service Worker: Using Cached Version -', event.request.url);
           return caches.match(event.request)
             .then((cachedResponse) => {
@@ -79,20 +75,17 @@ self.addEventListener('fetch', (event) => {
         })
     );
   } else {
-    // Cache First Strategy - الكاش أولاً للملفات الثابتة
+    // Cache First Strategy للملفات الثابتة
     event.respondWith(
       caches.match(event.request)
         .then((response) => {
-          // إذا وجد في الكاش، ارجعه
           if (response) {
             console.log('Service Worker: Serving from Cache -', event.request.url);
             return response;
           }
           
-          // إذا مش موجود في الكاش، حمله من النت وخزنه
           return fetch(event.request)
             .then((fetchResponse) => {
-              // تحقق إذا كان الرد صالح للتخزين
               if (!fetchResponse || fetchResponse.status !== 200 || fetchResponse.type !== 'basic') {
                 return fetchResponse;
               }
@@ -107,7 +100,6 @@ self.addEventListener('fetch', (event) => {
               return fetchResponse;
             })
             .catch(() => {
-              // إذا فشل التحميل من النت
               return new Response('Offline - Please check your connection');
             });
         })
@@ -115,7 +107,7 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// Listen for Messages from the Page
+// Listen for Messages
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
