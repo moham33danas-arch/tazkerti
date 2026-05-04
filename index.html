@@ -31,12 +31,12 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   
   <style>
-    /* جميع الأنماط السابقة دون تغيير */
     body { 
       font-family: 'Cairo', sans-serif; 
       background-color: #f8fafc; 
       -webkit-tap-highlight-color: transparent; 
       transition: background-color 0.3s, color 0.3s;
+      scroll-behavior: smooth;
     }
     .dark body { background-color: #0B1121; color: #e2e8f0; }
     .dark .bg-white { background-color: #1E293B !important; }
@@ -63,7 +63,6 @@
       padding-left: 2rem;
     }
     
-    /* Onboarding overlay styles */
     .onboarding-overlay {
       position: fixed;
       inset: 0;
@@ -117,7 +116,6 @@
     }
     .dark .onboarding-icon { background: #0F172A; color: #C6A44C; }
     
-    /* فلترة الباصات - شريط مع أسهم */
     .filter-wrapper {
       position: relative;
       display: flex;
@@ -167,7 +165,6 @@
     }
     .filter-chip:active { transform: scale(0.96); }
     
-    /* أزرار الأسهم */
     .scroll-arrow {
       width: 44px;
       height: 44px;
@@ -211,14 +208,12 @@
       margin-right: 0.5rem;
     }
     
-    /* تحسينات الوضع الداكن */
     .dark input, .dark select, .dark textarea {
       background-color: transparent;
       color: #e2e8f0;
     }
     .dark input::placeholder { color: #64748b; }
 
-    /* نافذة الدفع */
     .payment-modal {
       position: fixed;
       inset: 0;
@@ -270,7 +265,6 @@
       transition: opacity 0.2s;
       pointer-events: none;
     }
-    /* حاوية الصورة بدلاً من الأيقونة */
     .payment-image {
       width: 48px;
       height: 48px;
@@ -285,7 +279,6 @@
       background: #334155;
     }
 
-    /* زر تثبيت التطبيق */
     .install-btn {
       position: fixed;
       bottom: 90px;
@@ -306,7 +299,6 @@
       cursor: pointer;
     }
 
-    /* شاشة تحميل تسجيل الدخول المجهول */
     .auth-loading-screen {
       position: fixed;
       inset: 0;
@@ -329,18 +321,39 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* تأثير نبض لزر عرض المزيد */
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(198, 164, 76, 0.4); }
+      50% { box-shadow: 0 0 0 15px rgba(198, 164, 76, 0); }
+    }
+    .pulse-glow {
+      animation: pulseGlow 2s infinite;
+    }
+
+    /* تنسيق كروت الرحلات الافتراضية */
+    .default-trip-card {
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .default-trip-card:hover {
+      transform: translateY(-2px);
+    }
+    .default-trip-card:active {
+      transform: scale(0.98);
+    }
   </style>
 </head>
 <body class="text-gray-800 pb-24">
 
-  <!-- شاشة التحميل الأولية (تختفي بعد تسجيل الدخول المجهول) -->
+  <!-- شاشة التحميل الأولية -->
   <div id="authLoadingScreen" class="auth-loading-screen">
     <div class="auth-spinner mb-4"></div>
     <p class="text-lg font-bold text-royalDark dark:text-white">جاري الاتصال...</p>
     <p class="text-sm text-gray-500 mt-2">تسجيل الدخول السريع</p>
   </div>
 
-  <!-- باقي محتوى التطبيق (يُخفى حتى تسجيل الدخول) -->
+  <!-- باقي محتوى التطبيق -->
   <div id="appContent" style="display: none;">
 
     <!-- زر تثبيت التطبيق -->
@@ -371,12 +384,8 @@
           </button>
         </div>
         
-        <!-- ملخص الرحلة -->
-        <div id="paymentTripSummary" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-2xl mb-5 border border-gray-200 dark:border-gray-600">
-          <!-- يتم ملؤه ديناميكياً -->
-        </div>
+        <div id="paymentTripSummary" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-2xl mb-5 border border-gray-200 dark:border-gray-600"></div>
 
-        <!-- حقول بيانات العميل -->
         <div class="space-y-4 mb-5">
           <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
             <label class="block text-sm font-bold text-gray-600 dark:text-gray-300 mb-2"><i class="fas fa-user ml-1"></i>الاسم الرباعي الكامل</label>
@@ -388,23 +397,19 @@
           </div>
         </div>
         
-        <!-- تنبيه المبلغ المطلوب -->
         <div class="bg-gold/10 border border-gold/30 rounded-2xl p-4 mb-5 flex items-center gap-3">
           <div class="w-10 h-10 bg-gold/20 rounded-full flex items-center justify-center text-gold text-xl">
             <i class="fas fa-coins"></i>
           </div>
           <div>
-            <p class="font-bold text-royalDark dark:text-white">
-                ادفع 10,000 جنيه فقط لتأمين مقعدك</p>
+            <p class="font-bold text-royalDark dark:text-white">ادفع 10,000 جنيه فقط لتأمين مقعدك</p>
             <p class="text-xs text-gray-500 dark:text-gray-400">المبلغ المتبقي يُدفع قبل الرحلة لأستلام التزكرة فورا عبر واتساب</p>
           </div>
         </div>
         
-        <!-- خيارات الدفع -->
         <div class="space-y-4 mb-6">
           <h4 class="font-bold text-gray-600 dark:text-gray-300 text-sm">اختر طريقة الدفع:</h4>
           
-          <!-- بنكك -->
           <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
             <div class="flex items-center gap-3 mb-3">
               <div class="payment-image">
@@ -414,7 +419,7 @@
             </div>
             <div class="space-y-2 text-sm">
               <div class="flex justify-between items-center">
-                <span class="text-gray-500 dark:text-gray-400"> اسم المستفيد:</span>
+                <span class="text-gray-500 dark:text-gray-400">اسم المستفيد:</span>
                 <span class="font-bold dark:text-white">أنس أمين خليل أمين</span>
               </div>
               <div class="flex justify-between items-center">
@@ -428,7 +433,6 @@
             </div>
           </div>
           
-          <!-- فوري -->
           <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
             <div class="flex items-center gap-3 mb-3">
               <div class="payment-image">
@@ -446,7 +450,6 @@
             </div>
           </div>
 
-          <!-- ماي كاشي -->
           <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
             <div class="flex items-center gap-3 mb-3">
               <div class="payment-image">
@@ -464,7 +467,6 @@
             </div>
           </div>
 
-          <!-- المشرق -->
           <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
             <div class="flex items-center gap-3 mb-3">
               <div class="payment-image">
@@ -483,13 +485,11 @@
           </div>
         </div>
         
-        <!-- تعليمات -->
         <div class="text-xs text-gray-500 dark:text-gray-400 mb-5 bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-xl">
           <i class="fas fa-info-circle ml-1 text-royal"></i>
           بعد إتمام الدفع، اضغط على "رفع الإيصال" لإرسال صورة الإيصال عبر واتساب وتأكيد حجزك.
         </div>
         
-        <!-- أزرار الإجراء -->
         <div class="flex gap-3">
           <button onclick="closePaymentModal()" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-4 rounded-2xl font-bold">إلغاء</button>
           <button onclick="proceedToUploadReceipt()" class="flex-1 bg-royalDark text-white py-4 rounded-2xl font-bold shadow-lg shadow-royalDark/20 flex items-center justify-center gap-2">
@@ -500,6 +500,7 @@
       </div>
     </div>
 
+    <!-- ===================== الهيدر ===================== -->
     <header class="bg-royal text-white sticky top-0 z-40 shadow-xl rounded-b-[2.5rem] px-6 py-5 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
@@ -511,6 +512,10 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
+        <!-- زر البحث السريع -->
+        <button onclick="scrollToSearch()" class="bg-white/10 p-2 rounded-full border border-white/20 text-white hover:bg-white/20 transition-colors" title="بحث سريع">
+          <i class="fas fa-search"></i>
+        </button>
         <button id="themeToggle" class="bg-gold/20 p-2 rounded-full border border-gold/30 text-white hover:bg-gold/30 transition-colors">
           <i id="themeIcon" class="fas fa-moon"></i>
         </button>
@@ -520,19 +525,46 @@
       </div>
     </header>
 
-    <!-- الرئيسية -->
+    <!-- ===================== الرئيسية ===================== -->
     <main id="view-home" class="view-section active px-4 pt-6">
-      <div class="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-6 mb-8">
-        <h2 class="text-lg font-bold mb-5 flex items-center gap-2 text-royalDark dark:text-white"><i class="fas fa-search-location text-gold"></i> حجز رحلة جديدة</h2>
+
+      <!-- ✨ قسم الرحلات الافتراضية (يظهر أول 10 رحلات) -->
+      <div id="defaultTripsSection" class="mb-8">
+        <div class="flex items-center justify-between px-2 mb-4">
+          <div>
+            <h3 class="text-xl font-black text-royalDark dark:text-white">✨ رحلات مقترحة لك</h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">اختر من بين أفضل رحلاتنا المتاحة</p>
+          </div>
+          <button onclick="scrollToSearch()" class="bg-gold/10 text-gold px-4 py-2 rounded-full text-sm font-bold flex items-center gap-1 pulse-glow border border-gold/20 hover:bg-gold/20 transition-all">
+            عرض المزيد
+            <i class="fas fa-arrow-down animate-bounce"></i>
+          </button>
+        </div>
+        
+        <!-- حاوية الرحلات الافتراضية -->
+        <div id="defaultTripsContainer" class="space-y-4">
+          <div class="text-center py-10">
+            <i class="fas fa-spinner fa-pulse text-3xl text-royal dark:text-gold"></i>
+            <p class="mt-2 text-gray-500 dark:text-gray-400">جاري تحميل الرحلات المقترحة...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- قسم الفلترة والبحث (معرّف للتمرير إليه) -->
+      <div id="searchSection" class="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-8 scroll-mt-24">
+        <div class="flex items-center gap-2 mb-5">
+          <i class="fas fa-search-location text-gold text-xl"></i>
+          <h2 class="text-lg font-bold text-royalDark dark:text-white">حجز رحلة جديدة</h2>
+        </div>
         <div class="space-y-4">
           <div class="grid grid-cols-1 gap-4">
-            <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 border border-gray-200 dark:border-gray-600">
               <span class="text-[10px] text-gray-400 font-bold block mb-1">اختر محطة المغادرة من القائمة</span>
               <select id="search-from" class="w-full bg-transparent font-bold text-royalDark dark:text-white outline-none">
                 <option value="">جاري تحميل المناطق...</option>
               </select>
             </div>
-            <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 border border-gray-200 dark:border-gray-600">
               <span class="text-[10px] text-gray-400 font-bold block mb-1">أختر محطة الوصول من القائمة</span>
               <select id="search-to" class="w-full bg-transparent font-bold text-royalDark dark:text-white outline-none">
                 <option value="">جاري تحميل المناطق...</option>
@@ -540,22 +572,24 @@
             </div>
           </div>
           <div class="flex gap-4">
-            <div class="flex-1 bg-gray-50 rounded-2xl p-4 border border-gray-200">
+            <div class="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 border border-gray-200 dark:border-gray-600">
               <span class="text-[10px] text-gray-400 font-bold block mb-1">تاريخ السفر</span>
               <input type="date" id="search-date" class="w-full bg-transparent font-bold text-sm outline-none" value="2026-04-15">
             </div>
-            <div class="w-1/3 bg-gray-50 rounded-2xl p-4 border border-gray-200">
-              <span class="text-[10px] text-gray-400 font-bold block mb-1"> التزاكر</span>
+            <div class="w-1/3 bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 border border-gray-200 dark:border-gray-600">
+              <span class="text-[10px] text-gray-400 font-bold block mb-1">التزاكر</span>
               <select id="search-passengers" class="w-full bg-transparent font-bold outline-none">
                 <script>for(let i=1; i<=10; i++) document.write(`<option value="${i}">${i}</option>`)</script>
               </select>
             </div>
           </div>
-          <button onclick="renderBuses()" class="w-full bg-royalDark text-white font-extrabold py-5 rounded-[1.5rem] shadow-xl hover:bg-black dark:hover:bg-gray-800 transition-all transform active:scale-95">استعراض الرحلات المتاحة</button>
+          <button onclick="renderBuses()" class="w-full bg-royalDark text-white font-extrabold py-5 rounded-[1.5rem] shadow-xl hover:bg-black dark:hover:bg-gray-900 transition-all transform active:scale-95">
+            <i class="fas fa-search ml-1"></i> استعراض الرحلات المتاحة
+          </button>
         </div>
       </div>
 
-      <!-- شريط فلترة الباصات (يُملأ ديناميكياً) -->
+      <!-- شريط فلترة الباصات -->
       <div class="mb-4">
         <div class="flex items-center justify-between mb-2 px-2">
           <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400">فلترة حسب الباص</h3>
@@ -579,9 +613,13 @@
         </div>
       </div>
 
-      <h3 class="text-xl font-black text-royalDark dark:text-white mb-6 px-2">الرحلات المختارة</h3>
+      <!-- نتائج البحث -->
+      <h3 class="text-xl font-black text-royalDark dark:text-white mb-6 px-2">نتائج البحث</h3>
       <div id="buses-container" class="space-y-6 pb-10">
-        <div class="text-center py-10 text-gray-400">اختر مساراً واضغط "استعراض الرحلات"</div>
+        <div class="text-center py-10 text-gray-400 dark:text-gray-500">
+          <i class="fas fa-hand-point-up text-4xl mb-3 block"></i>
+          <p>اختر مساراً واضغط "استعراض الرحلات"</p>
+        </div>
       </div>
     </main>
 
@@ -589,21 +627,21 @@
     <main id="view-services" class="view-section px-4 pt-6">
       <h2 class="text-2xl font-black mb-6 text-royalDark dark:text-white">خدمات تزكرتي المميزة</h2>
       <div class="grid grid-cols-1 gap-4">
-        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-          <div class="w-16 h-16 bg-blue-100 text-royal rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-wifi"></i></div>
-          <div><h4 class="font-bold text-lg">إنترنت مجاني</h4><p class="text-sm text-gray-500 dark:text-gray-400">استمتع بخدمة الواي فاي عالية السرعة طوال مدة الرحلة.</p></div>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-royal dark:text-blue-300 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-wifi"></i></div>
+          <div><h4 class="font-bold text-lg dark:text-white">إنترنت مجاني</h4><p class="text-sm text-gray-500 dark:text-gray-400">استمتع بخدمة الواي فاي عالية السرعة طوال مدة الرحلة.</p></div>
         </div>
-        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-          <div class="w-16 h-16 bg-green-100 text-emerald rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-couch"></i></div>
-          <div><h4 class="font-bold text-lg">مقاعد VIP مريحة</h4><p class="text-sm text-gray-500 dark:text-gray-400">مقاعد جلدية واسعة قابلة للطي لضمان راحة تامة أثناء السفر.</p></div>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-emerald dark:text-green-300 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-couch"></i></div>
+          <div><h4 class="font-bold text-lg dark:text-white">مقاعد VIP مريحة</h4><p class="text-sm text-gray-500 dark:text-gray-400">مقاعد جلدية واسعة قابلة للطي لضمان راحة تامة أثناء السفر.</p></div>
         </div>
-        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-          <div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-utensils"></i></div>
-          <div><h4 class="font-bold text-lg">وجبات ضيافة</h4><p class="text-sm text-gray-500 dark:text-gray-400">نقدم وجبات خفيفة ومشروبات باردة وساخنة مجانية لركابنا.</p></div>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-utensils"></i></div>
+          <div><h4 class="font-bold text-lg dark:text-white">وجبات ضيافة</h4><p class="text-sm text-gray-500 dark:text-gray-400">نقدم وجبات خفيفة ومشروبات باردة وساخنة مجانية لركابنا.</p></div>
         </div>
-        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex gap-4 items-center">
-          <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-shield-alt"></i></div>
-          <div><h4 class="font-bold text-lg">أمان ومراقبة</h4><p class="text-sm text-gray-500 dark:text-gray-400">أعلى مستوى أمان و سائقين ذوي خبرة وكفاءة عالية.</p></div>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700 flex gap-4 items-center">
+          <div class="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 rounded-2xl flex items-center justify-center text-2xl shrink-0"><i class="fas fa-shield-alt"></i></div>
+          <div><h4 class="font-bold text-lg dark:text-white">أمان ومراقبة</h4><p class="text-sm text-gray-500 dark:text-gray-400">أعلى مستوى أمان وسائقين ذوي خبرة وكفاءة عالية.</p></div>
         </div>
       </div>
     </main>
@@ -637,13 +675,12 @@
         </a>
         <a href="#" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
           <i class="fas fa-map-marker-alt text-red-500 text-xl"></i>
-          <div><p class="text-[10px] text-gray-400 font-bold">المكتب الرئيسي</p><p class="font-bold dark:text-white">الخرطوم -بحري السامبراب</p></div>
+          <div><p class="text-[10px] text-gray-400 font-bold">المكتب الرئيسي</p><p class="font-bold dark:text-white">الخرطوم - بحري السامبراب</p></div>
         </a>
         <a href="https://wa.me/249128450908" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
           <i class="fab fa-whatsapp text-emerald text-xl"></i>
           <div><p class="text-[10px] text-gray-400 font-bold">واتساب الأعمال</p><p class="font-bold dark:text-white">راسلنا الآن</p></div>
         </a>
-        <!-- إضافة أيقونة فيسبوك مع الرابط -->
         <a href="https://www.facebook.com/share/1Cn8c7ZEJ6/" target="_blank" class="bg-white dark:bg-gray-800 p-5 rounded-2xl flex items-center gap-4 border border-gray-100 dark:border-gray-700 shadow-sm">
           <i class="fab fa-facebook text-blue-600 text-xl"></i>
           <div><p class="text-[10px] text-gray-400 font-bold">صفحة الفيسبوك</p><p class="font-bold dark:text-white">تابعنا على فيسبوك</p></div>
@@ -714,6 +751,7 @@
   async function initApp() {
     initTheme();
     await loadInitialData(); // جلب جميع الباصات مرة واحدة
+    renderDefaultTrips();    // ✨ عرض أول 10 رحلات افتراضياً
     startOnboardingIfNeeded();
     window.addEventListener('resize', updateArrowsVisibility);
     
@@ -736,9 +774,24 @@
     return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
   }
 
+  // ==================== دالة التمرير إلى قسم البحث ====================
+  function scrollToSearch() {
+    const searchSection = document.getElementById('searchSection');
+    if (searchSection) {
+      searchSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // إضافة تأثير تركيز وامض على القسم
+      searchSection.style.transition = 'all 0.3s ease';
+      searchSection.style.boxShadow = '0 0 0 4px rgba(198, 164, 76, 0.5)';
+      setTimeout(() => {
+        searchSection.style.boxShadow = '';
+      }, 1500);
+    }
+  }
+
   // ====================🟢🟢🟢🟢🟢🟢🟢🟢 ثوابت التطبيق🟢🟢🟢🟢🟢🟢🟢🟢 ====================
   const WHATSAPP_NUMBER = '249128450908';
   const CACHE_TTL = 1 * 60 * 1000; // ساعة واحدة
+  const DEFAULT_TRIPS_COUNT = 10;    // عدد الرحلات الافتراضية
   
   let bookings = [];
   let stateList = [];
@@ -779,7 +832,7 @@
       if (key.startsWith('tazkarti_')) localStorage.removeItem(key);
     }
     alert('تم مسح الكاش');
-    loadInitialData();
+    location.reload();
   };
 
   // ==================== PWA ====================
@@ -926,7 +979,6 @@
   }
   
   function extractAndPopulateStatesAndFilters(buses) {
-    // استخراج الولايات وأسماء الباصات
     const fromStates = new Set();
     const toStates = new Set();
     const busNames = new Set();
@@ -940,11 +992,9 @@
     stateList = [...new Set([...fromStates, ...toStates])].sort();
     busNamesList = Array.from(busNames).sort();
     
-    // تحديث القوائم المنسدلة
     populateStateSelects(stateList);
     renderFilterChips(busNamesList);
     
-    // تخزين القوائم المستخلصة في الكاش أيضاً (اختياري)
     setCachedData('tazkarti_states', stateList);
     setCachedData('tazkarti_bus_filters', busNamesList);
   }
@@ -966,7 +1016,6 @@
     }).join('');
     
     fromSelect.innerHTML = renderOptions(states[0]);
-    // اختيار قيمة افتراضية مختلفة للوصول إن أمكن
     const defaultTo = states.length > 1 ? states[1] : states[0];
     toSelect.innerHTML = renderOptions(defaultTo);
   }
@@ -1016,24 +1065,81 @@
     leftArrow.classList.toggle('disabled', scrollLeft >= maxScroll - 5);
   }
 
+  // ==================== ✨ عرض أول 10 رحلات افتراضياً ====================
+  function renderDefaultTrips() {
+    const container = document.getElementById('defaultTripsContainer');
+    
+    if (!cachedAllBuses || cachedAllBuses.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-10 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
+          <i class="fas fa-route text-4xl text-gray-300 dark:text-gray-600 mb-3"></i>
+          <p class="text-gray-500 dark:text-gray-400 font-bold">لم يتم تحميل الرحلات بعد</p>
+          <button onclick="location.reload()" class="mt-3 text-gold font-bold underline">تحديث الصفحة</button>
+        </div>`;
+      return;
+    }
+    
+    // خلط عشوائي للرحلات لإظهار تنوع في كل زيارة
+    const shuffled = [...cachedAllBuses].sort(() => Math.random() - 0.5);
+    const defaultTrips = shuffled.slice(0, DEFAULT_TRIPS_COUNT);
+    
+    if (defaultTrips.length === 0) {
+      container.innerHTML = '<div class="text-center py-10 text-gray-400">لا توجد رحلات متاحة حالياً</div>';
+      return;
+    }
+    
+    container.innerHTML = defaultTrips.map(bus => {
+      const depTime12 = formatTime12Hour(bus.depTime);
+      const arrTime12 = formatTime12Hour(bus.arrTime);
+      return `
+      <div class="default-trip-card bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex items-center gap-4 hover:shadow-md" onclick="bookTrip('${bus.id}')">
+        <div class="w-20 h-20 rounded-2xl overflow-hidden shrink-0">
+          <img src="${bus.img || 'https://images.pexels.com/photos/2790386/pexels-photo-2790386.jpeg?auto=compress&cs=tinysrgb&w=200'}" class="w-full h-full object-cover" alt="${bus.name}">
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-black text-royalDark dark:text-white text-sm truncate">${bus.name}</span>
+            <span class="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full shrink-0">${bus.type || 'VIP'}</span>
+          </div>
+          <div class="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+            <span class="font-bold">${extractCity(bus.from)}</span>
+            <i class="fas fa-long-arrow-alt-left text-gold text-xs"></i>
+            <span class="font-bold">${extractCity(bus.to)}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="bg-blue-50 dark:bg-blue-900/20 text-royal dark:text-blue-300 px-2 py-1 rounded-lg font-bold">🕒 ${depTime12}</span>
+              <span class="text-gray-400">←</span>
+              <span class="text-emerald font-bold">${arrTime12}</span>
+            </div>
+            <span class="font-black text-royalDark dark:text-white text-sm">${bus.price.toLocaleString()} ج.س</span>
+          </div>
+        </div>
+        <div class="shrink-0 text-gold/60 hover:text-gold transition-colors">
+          <i class="fas fa-chevron-left"></i>
+        </div>
+      </div>
+    `}).join('');
+  }
+
   // ==================== جلب الرحلات (تصفية محلية) ====================
   async function renderBuses() {
     const container = document.getElementById('buses-container');
     const from = document.getElementById('search-from').value;
     const to = document.getElementById('search-to').value;
-    if (!from || !to) { container.innerHTML = '<div class="text-center py-10 text-gray-400">الرجاء اختيار محطتي المغادرة والوصول</div>'; return; }
+    if (!from || !to) { 
+      container.innerHTML = '<div class="text-center py-10 text-gray-400">الرجاء اختيار محطتي المغادرة والوصول</div>'; 
+      return; 
+    }
     
-    // استخدام البيانات المخزنة محلياً للتصفية
     let busesToDisplay = [];
     
     if (cachedAllBuses.length > 0) {
-      // تصفية محلية سريعة
       busesToDisplay = cachedAllBuses.filter(bus => bus.from === from && bus.to === to);
       if (currentFilter !== 'all') {
         busesToDisplay = busesToDisplay.filter(bus => bus.name === currentFilter);
       }
     } else {
-      // في حالة عدم وجود كاش (نادر)، نجلب من Firestore
       container.innerHTML = '<div class="text-center py-10"><i class="fas fa-spinner fa-pulse text-2xl text-gold"></i><p class="mt-2">جاري تحميل الرحلات...</p></div>';
       try {
         const snapshot = await db.collection("buses").where("from", "==", from).where("to", "==", to).get();
@@ -1050,6 +1156,9 @@
     }
     
     displayBuses(busesToDisplay, from, to);
+    
+    // التمرير إلى النتائج
+    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   
   function displayBuses(buses, from, to) {
@@ -1089,10 +1198,8 @@
   // ==================== حجز رحلة ====================
   async function bookTrip(busId) {
     try {
-      // البحث عن الباص في الذاكرة المخبأة أولاً
       let bus = cachedAllBuses.find(b => b.id === busId);
       if (!bus) {
-        // إذا لم يوجد محلياً، نجلبه من Firestore (حالة نادرة)
         const busDoc = await db.collection("buses").doc(busId).get();
         if (!busDoc.exists) { alert("الرحلة غير موجودة"); return; }
         bus = { id: busId, ...busDoc.data() };
@@ -1261,6 +1368,7 @@
   window.closePaymentModal = closePaymentModal;
   window.copyToClipboard = copyToClipboard;
   window.proceedToUploadReceipt = proceedToUploadReceipt;
+  window.scrollToSearch = scrollToSearch;
   </script>
 </body>
 </html>
